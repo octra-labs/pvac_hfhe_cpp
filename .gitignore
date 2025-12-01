@@ -39,3 +39,13 @@
 
 # debug information files
 *.dwo
+
+# build
+build/
+
+# project specific
+pvac_metrics.csv
+
+# macos
+.DS_Store
+*.dSYM/
