@@ -12,19 +12,19 @@ namespace pvac {
 
 // (separations) don't touch it at all 
 namespace Dom {
-    inline constexpr const char * H_GEN   = "pv|h";
-    inline constexpr const char * X_SEED  = "pv|sx";
-    inline constexpr const char * NOISE   = "pv|sn";
+    inline constexpr const char * H_GEN = "pv|h";
+    inline constexpr const char * X_SEED = "pv|sx";
+    inline constexpr const char * NOISE = "pv|sn";
     
     inline constexpr const char * PRF_LPN = "pv|pr";
-    inline constexpr const char * TOEP    = "pv|tp";
+    inline constexpr const char * TOEP = "pv|tp";
 
-    inline constexpr const char * ZTAG    = "pv|zt";
-    inline constexpr const char * COMMIT  = "pv|cm";
+    inline constexpr const char * ZTAG = "pv|zt";
+    inline constexpr const char * COMMIT = "pv|cm";
 
-    inline constexpr const char * PRF_R1  = "pv|r1";
-    inline constexpr const char * PRF_R2  = "pv|r2";
-    inline constexpr const char * PRF_R3  = "pv|r3";
+    inline constexpr const char * PRF_R1 = "pv|r1";
+    inline constexpr const char * PRF_R2 = "pv|r2";
+    inline constexpr const char * PRF_R3 = "pv|r3";
 }
 
 

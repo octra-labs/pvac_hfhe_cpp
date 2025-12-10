@@ -33,8 +33,8 @@ constexpr const char * DATE = "03.9.2024";
 
 constexpr const char * VERSION_STRING = "0.1.0";
 
-constexpr const char * PROJECT_NAME   = "pvac-hfhe";
-constexpr const char * PROJECT_FULL   = "pvac-hfhe";
+constexpr const char * PROJECT_NAME = "pvac-hfhe";
+constexpr const char * PROJECT_FULL = "pvac-hfhe";
 
 
 

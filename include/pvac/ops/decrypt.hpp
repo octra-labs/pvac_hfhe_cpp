@@ -62,10 +62,10 @@ inline Fp layer_R_cached(
 inline Fp dec_value(const PubKey & pk, const SecKey & sk, const Cipher & C) {
     size_t L = C.L.size();
 
-    std::vector<Fp>  cache(L, fp_from_u64(0));
+    std::vector<Fp> cache(L, fp_from_u64(0));
     std::vector<int> vis(L, 0);
 
-    std::vector<Fp>  Rinv(L, fp_from_u64(0));
+    std::vector<Fp> Rinv(L, fp_from_u64(0));
 
     for (size_t lid = 0; lid < L; lid++) {
          Fp R  = layer_R_cached(pk, sk, C, (uint32_t)lid, vis, cache);
