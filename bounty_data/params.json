@@ -1,0 +1,12 @@
+{
+  "m_bits": 8192,
+  "B": 337,
+  "lpn_t": 16384,
+  "lpn_n": 4096,
+  "lpn_tau_num": 1,
+  "lpn_tau_den": 8,
+  "noise_entropy_bits": 120,
+  "depth_slope_bits": 16,
+  "tuple2_fraction": 0.55,
+  "edge_budget": 1200000
+}
