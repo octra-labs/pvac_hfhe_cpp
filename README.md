@@ -25,7 +25,7 @@ ps: look at the attachments.
 
 ```bash
 git clone https://github.com/octra-labs/pvac_hfhe_cpp.git
-cd pvac-hfhe-cpp
+cd pvac_hfhe_cpp
 ```
 ```cpp
 #include <pvac/pvac.hpp>
