@@ -6,7 +6,7 @@
 using namespace pvac;
 
 Fp sum_signed(const Fp& acc, const Edge& e) {
-    return (sgn_val(e.ch) > 0) ? fp_add(acc, e.w) : fp_sub(acc, e.w);
+    return (sgn_val(e.ch) > 0) ? fp_add(acc, e.w[0]) : fp_sub(acc, e.w[0]);
 }
 
 bool next_comb(std::vector<int>& c, int n) {

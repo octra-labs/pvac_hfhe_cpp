@@ -15,12 +15,11 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
     s.init();
     s.update(Dom::COMMIT, std::strlen(Dom::COMMIT));
 
+
+
     s.update(pk.H_digest.data(), 32);
 
     sha256_acc_u64(s, pk.canon_tag);
-
-    sha256_acc_u64(s, C.c0.lo);
-    sha256_acc_u64(s, C.c0.hi);
 
     for (const auto & L : C.L) {
         uint8_t r[1] = { (uint8_t)L.rule };
@@ -45,18 +44,20 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
         uint8_t ch[1] = { e.ch };
         s.update(ch, 1);
 
-        uint8_t w16[16];
+        for (size_t j = 0; j < e.w.size(); ++j) {
+            uint8_t w16[16];
 
-        for (int i = 0; i < 8; i++) 
-        {
-            w16[i] = (uint8_t)((e.w.lo >> (8 * i)) & 0xFF);
+            for (int i = 0; i < 8; i++) 
+            {
+                w16[i] = (uint8_t)((e.w[j].lo >> (8 * i)) & 0xFF);
+            }
+
+            for (int i = 0; i < 8; i++) {
+                w16[8 + i] = (uint8_t)(((e.w[j].hi & MASK63) >> (8 * i)) & 0xFF);
+            }
+
+            s.update(w16, 16);
         }
-
-        for (int i = 0; i < 8; i++) {
-            w16[8 + i] = (uint8_t)(((e.w.hi & MASK63) >> (8 * i)) & 0xFF);
-        }
-
-        s.update(w16, 16);
 
         size_t bytes = (e.s.nbits + 7) / 8;
         size_t full  = bytes / 8;
@@ -86,5 +87,4 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
 
     return out;
 }
-
 }

@@ -67,17 +67,16 @@ inline double sigma_shannon(const Cipher& C) {
     return H; 
 }
 
-inline Fp agg_layer_gsum(const PubKey & pk, const Cipher & X, uint32_t lid) {
-    Fp s = fp_from_u64(0);
+inline std::vector<Fp> agg_layer_gsum(const PubKey& pk, const Cipher& X, uint32_t lid) {
+    auto s = field::Op::zeros(X.slots);
 
-    for (const auto & e : X.E) {
+    for (const auto& e : X.E) {
         if (e.layer_id == lid) {
-            Fp term = fp_mul(e.w, pk.powg_B[e.idx]);
-
-            if (e.ch == SGN_P) {
-                s = fp_add(s, term);
-            } else {
-                s = fp_sub(s, term);
+            Fp gp = pk.powg_B[e.idx];
+            int sg = sgn_val(e.ch);
+            for (size_t j = 0; j < X.slots; ++j) {
+                Fp term = fp_mul(e.w[j], gp);
+                s[j] = sg > 0 ? fp_add(s[j], term) : fp_sub(s[j], term);
             }
         }
     }
@@ -99,12 +98,13 @@ inline bool check_mul_gsum_all(
         {
             uint32_t lc = base_count + la * (uint32_t)B.L.size() + lb;
 
-            Fp aa = agg_layer_gsum(pk, A, la);
-            Fp bb = agg_layer_gsum(pk, B, lb);
-            Fp cc = agg_layer_gsum(pk, C, lc);
+            auto aa = agg_layer_gsum(pk, A, la);
+            auto bb = agg_layer_gsum(pk, B, lb);
+            auto cc = agg_layer_gsum(pk, C, lc);
 
-            if (!ct::fp_eq(cc, fp_mul(aa, bb))) {
-                return false;
+            for (size_t j = 0; j < aa.size(); ++j) {
+                if (!ct::fp_eq(cc[j], fp_mul(aa[j], bb[j])))
+                    return false;
             }
         }
     }

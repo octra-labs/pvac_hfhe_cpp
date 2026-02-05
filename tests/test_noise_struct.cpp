@@ -26,8 +26,8 @@ static bool find_z2_struct(const PubKey& pk, const Cipher& C) {
             int s1 = sgn_val(e1.ch);
             int s2 = sgn_val(e2.ch);
 
-            Fp t1 = fp_mul(e1.w, pk.powg_B[e1.idx]);
-            Fp t2 = fp_mul(e2.w, pk.powg_B[e2.idx]);
+            Fp t1 = fp_mul(e1.w[0], pk.powg_B[e1.idx]);
+            Fp t2 = fp_mul(e2.w[0], pk.powg_B[e2.idx]);
 
             if (s1 < 0) t1 = fp_neg(t1);
             if (s2 < 0) t2 = fp_neg(t2);
@@ -58,9 +58,9 @@ static bool find_z3_struct(const PubKey& pk, const Cipher& C) {
                 int s2 = sgn_val(e2.ch);
                 int s3 = sgn_val(e3.ch);
 
-                Fp t1 = fp_mul(e1.w, pk.powg_B[e1.idx]);
-                Fp t2 = fp_mul(e2.w, pk.powg_B[e2.idx]);
-                Fp t3 = fp_mul(e3.w, pk.powg_B[e3.idx]);
+                Fp t1 = fp_mul(e1.w[0], pk.powg_B[e1.idx]);
+                Fp t2 = fp_mul(e2.w[0], pk.powg_B[e2.idx]);
+                Fp t3 = fp_mul(e3.w[0], pk.powg_B[e3.idx]);
 
                 if (s1 < 0) t1 = fp_neg(t1);
                 if (s2 < 0) t2 = fp_neg(t2);

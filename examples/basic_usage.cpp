@@ -40,7 +40,7 @@ void print_cipher(const Cipher& c, const std::string& name, size_t max_edges = 3
         const auto& e = c.E[i];
         std::cout << "      [" << i << "] L = " << e.layer_id 
 
-                  << " i = " << e.idx << " w = 0x" << std::hex << e.w.lo << std::dec << "\n";
+                  << " i = " << e.idx << " w = 0x" << std::hex << e.w[0].lo << std::dec << "\n";
     }
     if (c.E.size() > max_edges) std::cout << "      --- (" << c.E.size() - max_edges << " + )\n";
 }
@@ -217,15 +217,15 @@ int main() {
     Cipher ca1 = enc_value(pk, sk, 100);
     Cipher ca2 = enc_value(pk, sk, 100);
     CHECK(dec_value(pk, sk, ca1).lo == dec_value(pk, sk, ca2).lo, "both = 100");
-    CHECK(ca1.E[0].w.lo != ca2.E[0].w.lo, "diff rnd");
-    std::cout << "   w1 = 0x" << std::hex << ca1.E[0].w.lo << ", w2 = 0x" << ca2.E[0].w.lo << std::dec << "\n";
+    CHECK(ca1.E[0].w[0].lo != ca2.E[0].w[0].lo, "diff rnd");
+    std::cout << "w1 = 0x" << std::hex << ca1.E[0].w[0].lo << ", w2 = 0x" << ca2.E[0].w[0].lo << std::dec << "\n";
     
     TEST("commit uniq");
     auto cm1 = commit_ct(pk, ca1);
     auto cm2 = commit_ct(pk, ca2);
     CHECK(cm1 != cm2, "diff ct -> diff commit");
-    std::cout << "   c1 = 0x" << hex8(cm1.data(), 8) << "\n";
-    std::cout << "   c2 = 0x" << hex8(cm2.data(), 8) << "\n";
+    std::cout << "c1 = 0x" << hex8(cm1.data(), 8) << "\n";
+    std::cout << "c2 = 0x" << hex8(cm2.data(), 8) << "\n";
     
     TEST("text ascii");
     std::string ascii = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

@@ -27,7 +27,7 @@ inline Fp try_decrypt_layer(const PubKey& pk, const Cipher& ct, size_t layer_id,
     Fp sum = fp_from_u64(0);
     for (const auto& e : ct.E) {
         if (e.layer_id != layer_id) continue;
-        Fp r = fp_mul(e.w, R_inv);
+        Fp r = fp_mul(e.w[0], R_inv);
         Fp term = fp_mul(r, pk.powg_B[e.idx]);
         if (e.ch == SGN_P) sum = fp_add(sum, term);
         else sum = fp_sub(sum, term);
@@ -56,7 +56,7 @@ int main() {
     for (size_t ct_idx = 0; ct_idx < cts.size(); ++ct_idx) {
         const Cipher& ct = cts[ct_idx];
         
-        Fp R_real = prf_R(pk, sk, ct.L[0].seed);
+        Fp R_real = prf_R_slots(pk, sk, ct.L[0].seed, 1)[0];
         Fp R2_real = fp_mul(R_real, R_real);
         
         std::vector<size_t> layer0_edges;
@@ -79,10 +79,10 @@ int main() {
                 int s1 = sgn_val(e1.ch);
                 int s2 = sgn_val(e2.ch);
                 
-                Fp t1 = fp_mul(e1.w, g1);
+                Fp t1 = fp_mul(e1.w[0], g1);
                 if (s1 < 0) t1 = fp_neg(t1);
                 
-                Fp t2 = fp_mul(e2.w, g2);
+                Fp t2 = fp_mul(e2.w[0], g2);
                 if (s2 < 0) t2 = fp_neg(t2);
                 
                 Fp cand = fp_add(t1, t2);

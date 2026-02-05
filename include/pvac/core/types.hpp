@@ -109,14 +109,15 @@ struct Edge {
     uint32_t layer_id;
     uint16_t idx;
     uint8_t ch;
-    Fp w;
+    std::vector<Fp> w;
     BitVec  s;
 };
 
 struct Cipher {
     std::vector<Layer> L;
     std::vector<Edge> E;
-    Fp c0{0, 0};
+    std::vector<Fp> c0;
+    size_t slots = 1;
 };
 
 struct PubKey {

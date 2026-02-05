@@ -88,7 +88,7 @@ namespace ser {
         o.write(reinterpret_cast<const char*>(&e.idx), 2);
         o.put(e.ch);
         o.put(0);
-        putFp(o, e.w);
+        for (size_t j = 0; j < SLOTS; ++j) putFp(o, e.w[j]);
         putBv(o, e.s);
     };
 
@@ -99,7 +99,7 @@ namespace ser {
         i.read(reinterpret_cast<char*>(&e.idx), 2);
         e.ch = (uint8_t)i.get();
         i.get();
-        e.w = getFp(i);
+        for (size_t j = 0; j < SLOTS; ++j) e.w[j] = getFp(i);
         e.s = getBv(i);
         return e;
     };
@@ -107,6 +107,7 @@ namespace ser {
 
 
     auto putCipher = [](std::ostream& o, const Cipher& C) {
+        for (size_t j = 0; j < SLOTS; ++j) putFp(o, C.c0[j]);
         put32(o, (uint32_t)C.L.size());
         put32(o, (uint32_t)C.E.size());
         for (const auto& L : C.L) putLayer(o, L);
@@ -118,9 +119,7 @@ namespace ser {
 
     auto getCipher = [](std::istream& i) -> Cipher {
         Cipher C;
-
-
-
+        for (size_t j = 0; j < SLOTS; ++j) C.c0[j] = getFp(i);
         auto nL = get32(i), nE = get32(i);
         C.L.resize(nL); C.E.resize(nE);
         for (auto& L : C.L) L = getLayer(i);

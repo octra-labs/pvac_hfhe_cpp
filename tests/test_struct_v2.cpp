@@ -18,7 +18,7 @@ bool test_signal_noise(const PubKey& pk, const std::vector<Edge>& E0) {
     Fp total = fp_from_u64(0);
     std::vector<Fp> terms(n);
     for (int i = 0; i < n; ++i) {
-        Fp t = fp_mul(E0[i].w, pk.powg_B[E0[i].idx]);
+        Fp t = fp_mul(E0[i].w[0], pk.powg_B[E0[i].idx]);
         terms[i] = (sgn_val(E0[i].ch) > 0) ? t : fp_neg(t);
         total = fp_add(total, terms[i]);
     }
@@ -63,7 +63,7 @@ bool test_weight_zero(const std::vector<Edge>& E0) {
         Fp acc = fp_from_u64(0);
         for (int i = 0; i < k; ++i) {
             const auto& e = E0[comb[i]];
-            acc = (sgn_val(e.ch) > 0) ? fp_add(acc, e.w) : fp_sub(acc, e.w);
+            acc = (sgn_val(e.ch) > 0) ? fp_add(acc, e.w[0]) : fp_sub(acc, e.w[0]);
         }
         if (!ct::fp_is_nonzero(acc)) ++zeros;
 
@@ -88,7 +88,7 @@ bool test_gcd(const std::vector<Edge>& E0) {
     }
 
     std::vector<Fp> W;
-    for (const auto& e : E0) W.push_back(e.w);
+    for (const auto& e : E0) W.push_back(e.w[0]);
 
     int suspicious = 0;
     for (size_t i = 0; i < W.size(); ++i) {
@@ -125,7 +125,7 @@ bool test_linear(const std::vector<Edge>& E0) {
     }
 
     std::vector<Fp> W;
-    for (const auto& e : E0) W.push_back(e.w);
+    for (const auto& e : E0) W.push_back(e.w[0]);
 
     int relations = 0;
     constexpr int M = 10;
@@ -149,12 +149,10 @@ bool test_linear(const std::vector<Edge>& E0) {
                             sum = fp_add(sum, fp_mul(tb, W[j]));
                             sum = fp_add(sum, fp_mul(tc, W[k]));
 
-                            // !!!
                             if (!ct::fp_is_nonzero(sum)) {
                                 std::cout << a << "*w[" << i << "] + " << b << "*w[" << j << "] + " << c << "*w[" << k << "] = 0\n";
                                 ++relations;
                             }
-                            ///
                         }
                     }
                 }
@@ -200,8 +198,8 @@ bool test_cross_layer(const Cipher& ct) {
         for (size_t l2 = l1 + 1; l2 < ct.L.size(); ++l2) {
             if (by_layer[l1].empty() || by_layer[l2].empty()) continue;
 
-            Fp w1 = by_layer[l1][0].w;
-            Fp w2 = by_layer[l2][0].w;
+            Fp w1 = by_layer[l1][0].w[0];
+            Fp w2 = by_layer[l2][0].w[0];
             Fp ratio = fp_mul(w1, fp_inv(w2));
 
             for (uint64_t k = 1; k <= 1000; ++k) {
@@ -229,7 +227,7 @@ bool test_prf_unique(const PubKey& pk, const SecKey& sk) {
 
     std::vector<Fp> W;
     for (const auto& c : cts) {
-        if (!c.E.empty()) W.push_back(c.E[0].w);
+        if (!c.E.empty()) W.push_back(c.E[0].w[0]);
     }
 
     int collisions = 0;
@@ -264,12 +262,12 @@ bool test_r_recovery(const PubKey& pk, const SecKey& sk, const Cipher& ct) {
     int recovered = 0;
     for (size_t i = 0; i < E0.size() && i < 10; ++i) {
         for (uint64_t k = 1; k <= 100; ++k) {
-            Fp cand = fp_mul(E0[i].w, fp_inv(fp_from_u64(k)));
+            Fp cand = fp_mul(E0[i].w[0], fp_inv(fp_from_u64(k)));
             if (ct::fp_eq(cand, real_R)) {
                 std::cout << "recovered via w[" << i << "] / " << k << "\n";
                 ++recovered;
             }
-            cand = fp_mul(E0[i].w, fp_inv(fp_neg(fp_from_u64(k))));
+            cand = fp_mul(E0[i].w[0], fp_inv(fp_neg(fp_from_u64(k))));
             if (ct::fp_eq(cand, real_R)) {
                 std::cout << "recovered via w[" << i << "] / (-" << k << ")\n";
                 ++recovered;
@@ -365,7 +363,7 @@ bool test_multi_enc_struct(const PubKey& pk, const SecKey& sk) {
         Fp total = fp_from_u64(0);
         std::vector<Fp> terms(n);
         for (int i = 0; i < n; ++i) {
-            Fp t = fp_mul(E0[i].w, pk.powg_B[E0[i].idx]);
+            Fp t = fp_mul(E0[i].w[0], pk.powg_B[E0[i].idx]);
             terms[i] = (sgn_val(E0[i].ch) > 0) ? t : fp_neg(t);
             total = fp_add(total, terms[i]);
         }
@@ -433,8 +431,6 @@ bool test_delta_domain_separation(const PubKey& pk, const SecKey& sk) {
 }
 
 int main() {
-    std::cout << "== pvac struct test ==\n";
-
     Params prm;
     PubKey pk;
     SecKey sk;

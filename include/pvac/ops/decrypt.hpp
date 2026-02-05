@@ -6,86 +6,76 @@
 
 #include "../core/types.hpp"
 #include "../crypto/lpn.hpp"
+#include "encrypt.hpp"
 
 namespace pvac {
 
-inline Fp layer_R_cached(
-    const PubKey & pk,
-    const SecKey & sk,
-    const Cipher & C,
+inline std::vector<Fp> layer_R_cached(
+    const PubKey& pk,
+    const SecKey& sk,
+    const Cipher& C,
     uint32_t lid,
-    std::vector<int> & vis,
-    std::vector<Fp> & cache
-
+    std::vector<uint8_t>& st,
+    std::vector<std::vector<Fp>>& cache
 ) {
-    if ((size_t)lid >= C.L.size()) {
+    if ((size_t)lid >= C.L.size()) std::abort();
 
-        std::abort();
-    }
+    if (st[lid] == 2) return cache[lid];
 
-    if (cache[lid].lo | cache[lid].hi) 
-    
-    {
-        return cache[lid];
-    }
-
-    if (vis[lid]) 
-    {
-       
+    if (st[lid] == 1) {
         std::cerr << "[R] cycle\n";
         std::abort();
     }
 
-    vis[lid] = 1;
+    st[lid] = 1;
 
-    const Layer & L = C.L[lid];
-    Fp R {};
+    const Layer& L = C.L[lid];
 
     if (L.rule == RRule::BASE) {
-        R = prf_R(pk, sk, L.seed);
+        cache[lid] = prf_R_slots(pk, sk, L.seed, C.slots);
     } else {
-
-        Fp Ra = layer_R_cached(pk, sk, C, L.pa, vis, cache);
-
-
-        // test here later ( rb)
-        Fp Rb = layer_R_cached(pk, sk, C, L.pb, vis, cache);
-        R = fp_mul(Ra, Rb);
+        auto Ra = layer_R_cached(pk, sk, C, L.pa, st, cache);
+        auto Rb = layer_R_cached(pk, sk, C, L.pb, st, cache);
+        cache[lid] = field::Op::mul(Ra, Rb);
     }
 
-    vis[lid] = 0;
-    cache[lid] = R;
-
-    return R;
+    st[lid] = 2;
+    return cache[lid];
 }
 
-inline Fp dec_value(const PubKey & pk, const SecKey & sk, const Cipher & C) {
+inline std::vector<Fp> dec_values(const PubKey& pk, const SecKey& sk, const Cipher& C) {
     size_t L = C.L.size();
+    size_t S = C.slots;
 
-    std::vector<Fp> cache(L, fp_from_u64(0));
-    std::vector<int> vis(L, 0);
+    std::vector<std::vector<Fp>> cache(L);
+    std::vector<uint8_t> st(L, 0);
 
-    std::vector<Fp> Rinv(L, fp_from_u64(0));
+    std::vector<std::vector<Fp>> Rinv(L);
 
     for (size_t lid = 0; lid < L; lid++) {
-         Fp R  = layer_R_cached(pk, sk, C, (uint32_t)lid, vis, cache);
-        Rinv[lid] = fp_inv(R);
+        auto R = layer_R_cached(pk, sk, C, (uint32_t)lid, st, cache);
+        Rinv[lid].resize(S);
+        for (size_t j = 0; j < S; ++j)
+            Rinv[lid][j] = fp_inv(R[j]);
     }
 
-    // start from the plaintext constant term (see Cipher::c0)
-    Fp acc = C.c0;
+    auto acc = C.c0.empty() ? field::Op::zeros(S) : C.c0;
 
-    for (const auto & e : C.E) {
-        Fp term = fp_mul(e.w, pk.powg_B[e.idx]);
-        term = fp_mul(term, Rinv[e.layer_id]);
+    for (const auto& e : C.E) {
+        Fp gp = pk.powg_B[e.idx];
+        int s = sgn_val(e.ch);
 
-        if (e.ch == SGN_P) {
-            acc = fp_add(acc, term);
-        } else {
-            acc = fp_sub(acc, term);
+        for (size_t j = 0; j < S; ++j) {
+            Fp term = fp_mul(fp_mul(e.w[j], gp), Rinv[e.layer_id][j]);
+            acc[j] = s > 0 ? fp_add(acc[j], term) : fp_sub(acc[j], term);
         }
     }
 
     return acc;
 }
+
+inline Fp dec_value(const PubKey& pk, const SecKey& sk, const Cipher& C) {
+    return dec_values(pk, sk, C)[0];
+}
+
 }

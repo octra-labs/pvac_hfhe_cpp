@@ -50,7 +50,7 @@ double shannon(const std::map<uint64_t, int>& freq, int total) {
 
 double w_ent(const Cipher& c) {
     std::map<uint64_t, int> freq;
-    for (const auto& e : c.E) freq[e.w.lo & 0xFFFF]++;
+    for (const auto& e : c.E) freq[e.w[0].lo & 0xFFFF]++;
     return shannon(freq, (int)c.E.size());
 }
 
@@ -249,7 +249,7 @@ int main() {
 
     Fp exp_lin = fp_sub(fp_add(fp_mul(fp_from_u64(x), c3), fp_mul(fp_from_u64(y), c5)), fp_mul(fp_from_u64(z), c2));
     must(ct::fp_eq(dec_value(pk, sk, lin), exp_lin), "linear", &pk, &lin);
-    std::cout << "   3 * " << x << " + 5 * " << y << " - 2 * " << z << " = " << exp_lin.lo << " ok\n";
+    std::cout << "3 * " << x << " + 5 * " << y << " - 2 * " << z << " = " << exp_lin.lo << " ok\n";
 
     std::cout << "\n- poly: f(x) = x^3 - 2x^2 + 5x - 7 -\n";
     uint64_t v = 10;
@@ -277,7 +277,7 @@ int main() {
     Cipher X_copy = enc_value(pk, sk, x);
     double corr = ct_corr(X, X_copy);
     std::cout << "corr(enc(x), enc(x)) = " << corr << " (exp ~ " << pk.prm.m_bits / 2 << ")\n";
-    must(X.E[0].w.lo != X_copy.E[0].w.lo, "diff rnd", &pk, &X_copy);
+    must(X.E[0].w[0].lo != X_copy.E[0].w[0].lo, "diff rnd", &pk, &X_copy);
 
     std::cout << "\n- recrypt -\n";
     Cipher X3 = ct_mul(pk, ct_mul(pk, X, X), X);
@@ -329,7 +329,7 @@ int main() {
 
     std::cout << "\n- weight dist -\n";
     std::map<int, int> w_dist;
-    for (const auto& e : P.E) w_dist[hw64(e.w.lo) / 8]++;
+    for (const auto& e : P.E) w_dist[hw64(e.w[0].lo) / 8]++;
     std::cout << "hw buckets (0-7, 8-15, ...): ";
     for (auto& [bucket, cnt] : w_dist) std::cout << bucket * 8 << "-" << (bucket * 8 + 7) << ":" << cnt << " ";
     std::cout << "\n";

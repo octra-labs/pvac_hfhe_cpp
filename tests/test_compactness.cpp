@@ -24,16 +24,18 @@ static bool check_square_gsum(const PubKey& pk, const Cipher& A, const Cipher& C
     uint32_t L = (uint32_t)A.L.size();
     if (C.L.size() != L + L * (L + 1) / 2) return false;
 
-    std::vector<Fp> gA(L);
+    std::vector<std::vector<Fp>> gA(L);
     for (uint32_t i = 0; i < L; ++i) gA[i] = agg_layer_gsum(pk, A, i);
 
     for (uint32_t la = 0; la < L; ++la) {
         for (uint32_t lb = la; lb < L; ++lb) {
             uint32_t lid = L + (uint32_t)tri_off(L, la, lb);
-            Fp got = agg_layer_gsum(pk, C, lid);
-            Fp exp = fp_mul(gA[la], gA[lb]);
-            if (la != lb) exp = fp_add(exp, exp);
-            if (!ct::fp_eq(got, exp)) return false;
+            auto got = agg_layer_gsum(pk, C, lid);
+            auto exp = field::Op::mul(gA[la], gA[lb]);
+            if (la != lb) exp = field::Op::add(exp, exp);
+            if (got.size() != exp.size()) return false;
+            for (size_t j = 0; j < got.size(); ++j)
+                if (!ct::fp_eq(got[j], exp[j])) return false;
         }
     }
     return true;
