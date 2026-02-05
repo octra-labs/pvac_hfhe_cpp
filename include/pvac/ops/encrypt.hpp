@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <cassert>
 #include <vector>
 #include <array>
 #include <tuple>
@@ -11,6 +12,7 @@
 #include <type_traits>
 
 #include "../core/types.hpp"
+#include "../core/hash.hpp"
 #include "../crypto/lpn.hpp"
 #include "../crypto/matrix.hpp"
 #include "../core/ct_safe.hpp"
@@ -261,7 +263,7 @@ struct Gen {
     const SecKey& sk;
     const RSeed& seed;
     
-    Fp operator()(uint32_t i, uint8_t d) const {
+    Fp scalar(uint32_t i, uint8_t d) const {
         RSeed s = seed;
         uint64_t ii = static_cast<uint64_t>(i) + 1;
         uint64_t dd = static_cast<uint64_t>(d) + 1;
@@ -276,22 +278,48 @@ struct Gen {
         
         return prf_R_noise(pk, sk, s);
     }
+
+    Fp operator()(uint32_t i, uint8_t d) const {
+        return scalar(i, d);
+    }
+
+    std::vector<Fp> per_slot(uint32_t i, uint8_t d, size_t S) const {
+        if (S == 1) return { scalar(i, d) };
+        uint64_t ii = static_cast<uint64_t>(i) + 1;
+        uint64_t dd = static_cast<uint64_t>(d) + 1;
+        XofShake xof;
+        xof.init("pvac.delta.slot", {
+            sk.prf_k[0], sk.prf_k[1], sk.prf_k[2], sk.prf_k[3],
+            seed.ztag, seed.nonce.lo, seed.nonce.hi, ii, dd
+        });
+        std::vector<Fp> r(S);
+        for (size_t j = 0; j < S; ++j) {
+            for (;;) {
+                uint64_t lo = xof.take_u64();
+                uint64_t hi = xof.take_u64() & MASK63;
+                if (lo || hi) { r[j] = fp_from_words(lo, hi); break; }
+            }
+        }
+        return r;
+    }
 };
 
 struct Set {
-    alg::Carrier<Fp> vals;
-    Fp agg;
+    alg::Carrier<std::vector<Fp>> vals;
+    std::vector<Fp> agg;
     
-    static Set make(const Gen& g, const entropy::Budget& b) {
-        alg::Carrier<Fp> v = alg::gen(static_cast<size_t>(b.vol()), [&](size_t i) {
+    static Set make(const Gen& g, const entropy::Budget& b, size_t S) {
+        alg::Carrier<std::vector<Fp>> v = alg::gen(static_cast<size_t>(b.vol()), [&](size_t i) {
             uint8_t dom = (i < static_cast<size_t>(b.n2)) ? 0 : 1;
-            return g(static_cast<uint32_t>(i), dom);
+            return g.per_slot(static_cast<uint32_t>(i), dom, S);
         });
-        Fp s = field::Op::sum(v);
-        return { std::move(v), s };
+        auto s = field::Op::zeros(S);
+        for (size_t i = 0; i < v.len(); ++i)
+            s = field::Op::add(s, v[i]);
+        return { std::move(v), std::move(s) };
     }
     
-    Fp operator[](size_t i) const { return vals[i]; }
+    const std::vector<Fp>& operator[](size_t i) const { return vals[i]; }
 };
 
 }
@@ -357,15 +385,15 @@ class N2Edge {
 public:
     N2Edge(const PubKey& pk, const idx::Selector& sel) : pk_(pk), sel_(sel) {}
     
-    N2 build(Fp dt, size_t slots) const {
+    N2 build(const std::vector<Fp>& dt, size_t slots) const {
         int a = static_cast<int>(csprng_u64() % static_cast<uint64_t>(pk_.prm.B));
         int b = sel_.avoid(a);
         uint8_t sa = idx::Selector::bit();
         uint8_t sb = sa ^ 1;
-        Fp d = sgn_val(sa) > 0 ? dt : field::Op::neg(dt);
         Fp gb_inv = field::Op::inv(pk_.powg_B[b]);
         std::vector<Fp> ra(slots), rb(slots);
         for (size_t j = 0; j < slots; ++j) {
+            Fp d = sgn_val(sa) > 0 ? dt[j] : field::Op::neg(dt[j]);
             ra[j] = field::Op::rnd();
             rb[j] = field::Op::mul(field::Op::sub(field::Op::mul(ra[j], pk_.powg_B[a]), d), gb_inv);
         }
@@ -386,7 +414,7 @@ class N3Edge {
 public:
     N3Edge(const PubKey& pk, const idx::Selector& sel) : pk_(pk), sel_(sel) {}
     
-    N3 build(Fp dt, size_t slots) const {
+    N3 build(const std::vector<Fp>& dt, size_t slots) const {
         int a = static_cast<int>(csprng_u64() % static_cast<uint64_t>(pk_.prm.B));
         int b = sel_.avoid(a);
         int c = sel_.avoid(a, b);
@@ -402,7 +430,7 @@ public:
             rb[j] = field::Op::rnd();
             Fp ta = field::Op::sgn(field::Op::mul(ra[j], pk_.powg_B[a]), sa);
             Fp tb = field::Op::sgn(field::Op::mul(rb[j], pk_.powg_B[b]), sb);
-            rc[j] = field::Op::mul(field::Op::sub(dt, field::Op::add(ta, tb)), gc_inv);
+            rc[j] = field::Op::mul(field::Op::sub(dt[j], field::Op::add(ta, tb)), gc_inv);
         }
         return { a, b, c, sa, sb, sc, std::move(ra), std::move(rb), std::move(rc) };
     }
@@ -538,10 +566,10 @@ inline Cipher synth(const PubKey& pk, const SecKey& sk, const std::vector<Fp>& v
     
     entropy::Budget b = entropy::Budget::compute(pk.prm, depth);
     delta::Gen dg{ pk, sk, L.seed };
-    delta::Set ds = delta::Set::make(dg, b);
+    delta::Set ds = delta::Set::make(dg, b, S);
     
     auto R = prf_R_slots(pk, sk, L.seed, S);
-    auto va = field::Op::sub(v, field::Op::fill(ds.agg, S));
+    auto va = field::Op::sub(v, ds.agg);
     
     idx::Selector sel(pk.prm.B);
     graph::Emitter em{ pk, L.seed };
@@ -574,6 +602,7 @@ inline Cipher synth(const PubKey& pk, const SecKey& sk, const std::vector<Fp>& v
 }
 
 inline Cipher fuse(const PubKey& pk, const Cipher& a, const Cipher& b) {
+    assert(a.slots == b.slots && "fuse: slots mismatch");
     uint32_t off = static_cast<uint32_t>(a.L.size());
     
     std::vector<Layer> ls;
@@ -685,7 +714,7 @@ inline void guard_budget(const PubKey& pk, Cipher& C, const char* ctx) {
 }
 
 inline Fp prf_noise_delta(const PubKey& pk, const SecKey& sk, const RSeed& seed, uint32_t gid, uint8_t kind) {
-    return delta::Gen{ pk, sk, seed }(gid, kind);
+    return delta::Gen{ pk, sk, seed }.scalar(gid, kind);
 }
 
 inline Cipher enc_fp_depth(const PubKey& pk, const SecKey& sk, const std::vector<Fp>& v, int d) {

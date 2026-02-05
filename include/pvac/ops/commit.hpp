@@ -15,12 +15,11 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
     s.init();
     s.update(Dom::COMMIT, std::strlen(Dom::COMMIT));
 
-
-
     s.update(pk.H_digest.data(), 32);
 
     sha256_acc_u64(s, pk.canon_tag);
 
+    sha256_acc_u64(s, (uint64_t)C.L.size());
     for (const auto & L : C.L) {
         uint8_t r[1] = { (uint8_t)L.rule };
 
@@ -37,6 +36,14 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
         }
     }
 
+    sha256_acc_u64(s, (uint64_t)C.slots);
+    sha256_acc_u64(s, (uint64_t)C.c0.size());
+    for (const auto& x : C.c0) {
+        sha256_acc_u64(s, x.lo);
+        sha256_acc_u64(s, x.hi & MASK63);
+    }
+
+    sha256_acc_u64(s, (uint64_t)C.E.size());
     for (const auto & e : C.E) {
         sha256_acc_u64(s, e.layer_id);
         sha256_acc_u64(s, e.idx);
@@ -44,6 +51,7 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
         uint8_t ch[1] = { e.ch };
         s.update(ch, 1);
 
+        sha256_acc_u64(s, (uint64_t)e.w.size());
         for (size_t j = 0; j < e.w.size(); ++j) {
             uint8_t w16[16];
 
