@@ -10,12 +10,11 @@
 
 namespace pvac {
 
-// (separations) don't touch it at all 
 namespace Dom {
     inline constexpr const char* H_GEN = "pvac.dom.h_gen";
     inline constexpr const char* X_SEED = "pvac.dom.x_seed";
     inline constexpr const char* NOISE = "pvac.dom.noise";
-    
+
     inline constexpr const char* PRF_LPN = "pvac.dom.prf_lpn";
     inline constexpr const char* TOEP = "pvac.dom.toeplitz";
 
@@ -29,16 +28,19 @@ namespace Dom {
     inline constexpr const char* PRF_NOISE1 = "pvac.prf.noise.1";
     inline constexpr const char* PRF_NOISE2 = "pvac.prf.noise.2";
     inline constexpr const char* PRF_NOISE3 = "pvac.prf.noise.3";
+
+
+    // new
+
+    inline constexpr const char* R_COM = "pvac.dom.r_com";
+    inline constexpr const char* PRF_RHO = "pvac.prf.rho";
+    inline constexpr const char* PRF_RHO_PROD = "pvac.prf.rho.prod";
 }
 
-
-// all safety and dimensions are set, and can only be changed if there is an understanding of why
 struct Params {
 
-    // multiplicative group as a carrier of the properties
-    // of homo and does not affect security, this is not a dlp
-    int B = 337; 
-    
+    int B = 337;
+
     int m_bits = 8192;
     int n_bits = 16384;
     int h_col_wt = 192;
@@ -50,19 +52,11 @@ struct Params {
     double depth_slope_bits = 16.0;
     size_t edge_budget = 1200000;
 
-    // sec (tau = 1/8):
-    // info theor bound: 2226 bits
-    // classical: 200+ bits  
-    // quantum: 100+ bits
-
     int lpn_n = 4096;
     int lpn_t = 16384;
     int lpn_tau_num = 1;
-    int lpn_tau_den = 8;
 
-    // didn't bother with hypothetical approaches and went 
-    // with the absolute maximum in the settings and left it that way, 
-    // which is good for security/speed, etc
+    int lpn_tau_den = 8;
 
     double recrypt_lo = 0.48;
     double recrypt_hi = 0.52;
@@ -98,6 +92,8 @@ struct Layer {
     RSeed seed;
     uint32_t pa;
     uint32_t pb;
+    std::array<uint8_t, 32> R_com = {};
+    std::vector<std::array<uint8_t, 32>> PC;
 };
 
 enum EdgeSign : uint8_t {
@@ -129,6 +125,72 @@ struct PubKey {
     Fp omega_B;
     std::vector<Fp> powg_B;
 };
+
+
+
+
+
+
+    inline bool is_valid_cipher_shape(const Cipher& cipher) {
+        if (cipher.slots == 0)
+            return false;
+        if (!cipher.c0.empty() && cipher.c0.size() != cipher.slots)
+            return false;
+        for (size_t layer_id = 0; layer_id < cipher.L.size(); ++layer_id) {
+            const auto& layer = cipher.L[layer_id];
+            if (layer.rule != RRule::BASE && layer.rule != RRule::PROD)
+                return false;
+            if (layer.rule == RRule::PROD && (layer.pa >= layer_id || layer.pb >= layer_id))
+                return false;
+            if (layer.rule == RRule::PROD && !layer.PC.empty())
+                return false;
+            if (!layer.PC.empty() && layer.PC.size() != cipher.slots)
+                return false;
+        }
+        for (const auto& edge : cipher.E) {
+            if (edge.layer_id >= cipher.L.size())
+                return false;
+            if (edge.ch != SGN_P && edge.ch != SGN_M)
+                return false;
+            if (edge.w.size() != cipher.slots)
+                return false;
+        }
+        return true;
+    }
+
+    inline bool is_valid_pubkey_shape(const PubKey& pk) {
+        if (pk.prm.B <= 0 || pk.prm.m_bits <= 0 || pk.prm.n_bits <= 0)
+            return false;
+        if (pk.H.size() != static_cast<size_t>(pk.prm.n_bits))
+            return false;
+        if (pk.ubk.perm.size() != static_cast<size_t>(pk.prm.m_bits) ||
+            pk.ubk.inv.size() != static_cast<size_t>(pk.prm.m_bits))
+            return false;
+        if (pk.powg_B.size() != static_cast<size_t>(pk.prm.B))
+            return false;
+        for (const auto& column : pk.H) {
+            if (column.nbits != static_cast<uint64_t>(pk.prm.m_bits))
+                return false;
+        }
+        return true;
+    }
+
+    inline bool is_cipher_compatible_with_pubkey(const PubKey& pk, const Cipher& cipher) {
+        if (!is_valid_pubkey_shape(pk) || !is_valid_cipher_shape(cipher))
+            return false;
+        for (const auto& edge : cipher.E) {
+            if (edge.idx >= pk.powg_B.size())
+                return false;
+            if (edge.s.nbits != static_cast<uint64_t>(pk.prm.m_bits))
+                return false;
+        }
+        return true;
+    }
+
+
+
+
+
 
 struct SecKey {
     std::array<uint64_t, 4> prf_k;

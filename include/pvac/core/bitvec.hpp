@@ -36,7 +36,7 @@ struct BitVec {
         return s;
     }
 };
-    // pure xor shift + the same time for any x
+
     inline int parity64(uint64_t x) {
         x ^= x >> 32;
         x ^= x >> 16;

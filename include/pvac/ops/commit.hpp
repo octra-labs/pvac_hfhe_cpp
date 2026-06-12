@@ -9,7 +9,7 @@
 
 namespace pvac {
 
-inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C) 
+inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
 {
     Sha256 s;
     s.init();
@@ -34,6 +34,12 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
             sha256_acc_u64(s, L.pa);
             sha256_acc_u64(s, L.pb);
         }
+
+        s.update(L.R_com.data(), 32);
+        sha256_acc_u64(s, (uint64_t)L.PC.size());
+        for (const auto& pc : L.PC) {
+            s.update(pc.data(), 32);
+        }
     }
 
     sha256_acc_u64(s, (uint64_t)C.slots);
@@ -55,7 +61,7 @@ inline std::array<uint8_t, 32> commit_ct(const PubKey & pk, const Cipher & C)
         for (size_t j = 0; j < e.w.size(); ++j) {
             uint8_t w16[16];
 
-            for (int i = 0; i < 8; i++) 
+            for (int i = 0; i < 8; i++)
             {
                 w16[i] = (uint8_t)((e.w[j].lo >> (8 * i)) & 0xFF);
             }

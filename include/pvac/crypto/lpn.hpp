@@ -14,14 +14,22 @@
 #include <wmmintrin.h>
 #include <emmintrin.h>
 #define PVAC_USE_AESNI 1
+#define PVAC_USE_ARM_AES 0
+#elif defined(__aarch64__) && defined(__ARM_FEATURE_CRYPTO)
+#include <arm_neon.h>
+#define PVAC_USE_AESNI 0
+#define PVAC_USE_ARM_AES 1
+#elif defined(__aarch64__) && defined(__APPLE__)
+#include <arm_neon.h>
+#define PVAC_USE_AESNI 0
+#define PVAC_USE_ARM_AES 1
 #else
 #define PVAC_USE_AESNI 0
+#define PVAC_USE_ARM_AES 0
 #endif
 
 namespace pvac {
 
-
-    
 inline Fp hash_to_fp_nonzero(uint64_t lo, uint64_t hi) {
     Fp r = fp_from_words(lo, hi & MASK63);
     uint64_t orv = r.lo | r.hi;
@@ -148,9 +156,133 @@ struct AesCtr256 {
     }
 };
 
+#elif PVAC_USE_ARM_AES
+
+struct AesCtr256 {
+    uint8x16_t rk[15];
+    uint64_t ctr_val;
+    alignas(16) uint64_t buf[2] = {0, 0};
+    bool has_buf = false;
+
+    // Emulate x86 _mm_aesenc_si128 semantics:
+    // ShiftRows → SubBytes → MixColumns → AddRoundKey
+    // ARM vaeseq_u8(state, zero) = SubBytes → ShiftRows (commutes with ShiftRows→SubBytes)
+    // then vaesmcq_u8 = MixColumns, then XOR round key
+    static inline uint8x16_t aes_round(uint8x16_t state, uint8x16_t zero, uint8x16_t key) {
+        return veorq_u8(vaesmcq_u8(vaeseq_u8(state, zero)), key);
+    }
+
+    // Emulate x86 _mm_aesenclast_si128 semantics:
+    // ShiftRows → SubBytes → AddRoundKey  (no MixColumns)
+    static inline uint8x16_t aes_round_last(uint8x16_t state, uint8x16_t zero, uint8x16_t final_key) {
+        return veorq_u8(vaeseq_u8(state, zero), final_key);
+    }
+
+    static inline uint32_t sub_word(uint32_t w) {
+        uint8x16_t zero = vdupq_n_u8(0);
+        uint8x16_t v = vreinterpretq_u8_u32(vdupq_n_u32(w));
+        v = vaeseq_u8(v, zero);
+        return vgetq_lane_u32(vreinterpretq_u32_u8(v), 0);
+    }
+
+    static inline void key_expand_256(const uint8_t key[32], uint8x16_t rk_out[15]) {
+        static const uint8_t rcon[] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40};
+        uint32_t w[60];
+        std::memcpy(w, key, 32);
+
+        for (int i = 8; i < 60; ++i) {
+            uint32_t t = w[i - 1];
+            if (i % 8 == 0) {
+                t = sub_word((t >> 8) | (t << 24)) ^ ((uint32_t)rcon[i / 8 - 1]);
+            } else if (i % 8 == 4) {
+                t = sub_word(t);
+            }
+            w[i] = w[i - 8] ^ t;
+        }
+
+        for (int i = 0; i < 15; ++i)
+            rk_out[i] = vld1q_u8((const uint8_t*)(w + 4 * i));
+    }
+
+    void init(const uint8_t key[32], uint64_t nonce) {
+        key_expand_256(key, rk);
+        ctr_val = nonce;
+        has_buf = false;
+    }
+
+    inline void encrypt_ctr_block(uint8_t out[16]) {
+        alignas(16) uint64_t ctr_block[2] = {ctr_val, 0};
+        uint8x16_t state = vld1q_u8((const uint8_t*)ctr_block);
+        uint8x16_t zero = vdupq_n_u8(0);
+
+        state = veorq_u8(state, rk[0]);
+        state = aes_round(state, zero, rk[1]);
+        state = aes_round(state, zero, rk[2]);
+        state = aes_round(state, zero, rk[3]);
+        state = aes_round(state, zero, rk[4]);
+        state = aes_round(state, zero, rk[5]);
+        state = aes_round(state, zero, rk[6]);
+        state = aes_round(state, zero, rk[7]);
+        state = aes_round(state, zero, rk[8]);
+        state = aes_round(state, zero, rk[9]);
+        state = aes_round(state, zero, rk[10]);
+        state = aes_round(state, zero, rk[11]);
+        state = aes_round(state, zero, rk[12]);
+        state = aes_round(state, zero, rk[13]);
+        state = aes_round_last(state, zero, rk[14]);
+
+        vst1q_u8(out, state);
+        ++ctr_val;
+    }
+
+    inline uint64_t next_u64() {
+        if (has_buf) {
+            has_buf = false;
+            return buf[1];
+        }
+        alignas(16) uint8_t tmp[16];
+        encrypt_ctr_block(tmp);
+        std::memcpy(buf, tmp, 16);
+        has_buf = true;
+        return buf[0];
+    }
+
+    inline void fill_u64(uint64_t* out, size_t n) {
+        size_t i = 0;
+        if (has_buf && n > 0) {
+            out[0] = buf[1];
+            has_buf = false;
+            i = 1;
+        }
+        alignas(16) uint8_t tmp[16];
+        alignas(16) uint64_t pair[2];
+        for (; i + 1 < n; i += 2) {
+            encrypt_ctr_block(tmp);
+            std::memcpy(pair, tmp, 16);
+            out[i] = pair[0];
+            out[i + 1] = pair[1];
+        }
+        if (i < n) {
+            encrypt_ctr_block(tmp);
+            std::memcpy(buf, tmp, 16);
+            out[i] = buf[0];
+            has_buf = true;
+        }
+    }
+
+    inline uint64_t bounded(uint64_t M) {
+        if (M <= 1) return 0;
+        uint64_t lim = UINT64_MAX - (UINT64_MAX % M);
+        for (;;) {
+            uint64_t x = next_u64();
+            if (x < lim) return x % M;
+        }
+    }
+};
+
 #else
 
-#error "hfhe requires aes-ni support (compile with -march=native or -maes on x86_64)"
+#error "hfhe requires hardware AES support (x86_64 with -maes or aarch64 with crypto extensions)"
 
 #endif
 

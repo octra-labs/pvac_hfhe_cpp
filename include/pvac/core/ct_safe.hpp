@@ -1,9 +1,3 @@
-// lambda0xe
-// 4 dec 2025
-// don't change anything here (everything is tested and stable)
-// dev@octra.org
-
-
 #pragma once
 
 #include <cstdint>
@@ -345,5 +339,5 @@ inline void memzero_if(u64 cond, u8* dst, std::size_t n) noexcept {
     memset_if(cond, dst, 0, n);
 }
 
-} // namespace ct
-} // namespace pvac
+}
+}

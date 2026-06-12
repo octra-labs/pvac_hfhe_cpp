@@ -5,19 +5,24 @@
 #include <vector>
 #include <unordered_set>
 #include <numeric>
+#include <stdexcept>
 
 #include "../core/types.hpp"
 #include "../core/hash.hpp"
 
 namespace pvac {
 
-// select k unique indices from [0, N)
 inline std::vector<int> prg_choose_k(
     int k,
     int N,
     const char * label,
     const std::vector<uint64_t> & words
 ) {
+    if (k < 0 || N < 0)
+        throw std::runtime_error("pvac: unique sample negative domain rejected");
+    if (k > N)
+        throw std::runtime_error("pvac: unique sample exceeds domain");
+
     struct Ctr {
         const char * L;
         std::vector<uint64_t>   w;
@@ -91,7 +96,6 @@ inline std::vector<int> prg_choose_k(
     return out;
 }
 
-// public permutation from canon_tag
 inline Ubk gen_ubk_public(uint64_t canon_tag, int m_bits) {
     std::vector<int> perm(m_bits);
     std::iota(perm.begin(), perm.end(), 0);
@@ -163,7 +167,6 @@ inline Ubk gen_ubk_public(uint64_t canon_tag, int m_bits) {
     return u;
 }
 
-// apply inverse permutation to bitvec
 inline BitVec apply_perm_sigma(const BitVec & v, const std::vector<int> & inv) {
     BitVec o = BitVec::make(v.nbits);
 
@@ -187,7 +190,6 @@ inline BitVec apply_perm_sigma(const BitVec & v, const std::vector<int> & inv) {
     return o;
 }
 
-// sparse parity check
 inline void gen_H(PubKey & pk) {
     int m = pk.prm.m_bits;
     int n = pk.prm.n_bits;
@@ -215,9 +217,8 @@ inline void gen_H(PubKey & pk) {
         pk.H[c] = std::move(col);
     }
 
-    // digest for verif
     Sha256 s;
-    
+
     s.init();
     s.update("H|v2", 4);
     sha256_acc_u64(s, pk.prm.m_bits);
@@ -250,7 +251,6 @@ inline void gen_H(PubKey & pk) {
     s.finish(pk.H_digest.data());
 }
 
-// canon_tag + nonce
 inline uint64_t prg_layer_ztag(uint64_t canon_tag, Nonce128 n) {
     Sha256 s;
     s.init();
@@ -263,14 +263,13 @@ inline uint64_t prg_layer_ztag(uint64_t canon_tag, Nonce128 n) {
     return load_le64(out);
 }
 
-// xor of x_col_wt columns from H + err_wt noise bits (will check next)
 inline BitVec sigma_from_H(
     const PubKey & pk,
     uint64_t ztag,
     Nonce128 nonce,
     uint16_t idx,
     uint8_t ch,
-    uint64_t salt // (?)
+    uint64_t salt
 ) {
     int m = pk.prm.m_bits;
     int n = pk.prm.n_bits;
@@ -284,7 +283,7 @@ inline BitVec sigma_from_H(
         nonce.hi,
         (uint64_t)idx,
         (uint64_t)ch,
-        salt //same?
+        salt
     };
 
     auto cols = prg_choose_k(pk.prm.x_col_wt, n, Dom::X_SEED, words);
@@ -302,7 +301,6 @@ inline BitVec sigma_from_H(
     return s;
 }
 
-// permutation to all edges in ct
 inline void ubk_apply(const PubKey & pk, Cipher & C) {
     for (auto & e : C.E) {
         e.s = apply_perm_sigma(e.s, pk.ubk.inv);

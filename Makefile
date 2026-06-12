@@ -1,15 +1,35 @@
 CXX := g++
-CXXFLAGS := -std=c++17 -O2 -march=native -Wall -Wextra -I./include
+UNAME_M := $(shell uname -m)
+ifeq ($(UNAME_M),arm64)
+  ARCH_FLAGS := -march=armv8-a+crypto
+else
+  ARCH_FLAGS := -march=native
+endif
+CXXFLAGS := -std=c++17 -O2 $(ARCH_FLAGS) -Wall -Wextra -I./include -pthread
 DEBUG_FLAGS := -g -O0 -DPVAC_DEBUG
 SANITIZE_FLAGS := -fsanitize=address,undefined
 BUILD := build
 TESTS := tests
 EXAMPLES := examples
 
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+  LIBPVAC := $(BUILD)/libpvac.dylib
+  SHARED_FLAGS := -dynamiclib
+else
+  LIBPVAC := $(BUILD)/libpvac.so
+  SHARED_FLAGS := -shared
+endif
+
 all: $(BUILD)/test_main
+
+libpvac: $(LIBPVAC)
 
 $(BUILD):
 	mkdir -p $(BUILD)
+
+$(LIBPVAC): pvac_c_api.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -fPIC $(SHARED_FLAGS) -I../lib/pvac_ffi -o $@ $<
 
 $(BUILD)/test_main: $(TESTS)/test_main.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -24,6 +44,9 @@ $(BUILD)/test_main_san: $(TESTS)/test_main.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) $(DEBUG_FLAGS) $(SANITIZE_FLAGS) -o $@ $
 
 $(BUILD)/basic_usage: $(EXAMPLES)/basic_usage.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/recrypt_usage: $(EXAMPLES)/recrypt_usage.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 $(BUILD)/ml_credit_scoring: $(EXAMPLES)/ml/credit_scoring.cpp | $(BUILD)
@@ -83,9 +106,66 @@ $(BUILD)/test_compactness: $(TESTS)/test_compactness.cpp | $(BUILD)
 $(BUILD)/test_zero_sk: $(TESTS)/test_zero_sk.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
+$(BUILD)/test_private_transfer: $(TESTS)/test_private_transfer.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_ct_geq_sign: $(TESTS)/test_ct_geq_sign.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_verify_zero: $(TESTS)/test_verify_zero.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_range_proof: $(TESTS)/test_range_proof.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_recrypt: $(TESTS)/test_recrypt.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_recrypt_native: $(TESTS)/test_recrypt_native.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_recrypt_nat: $(TESTS)/test_recrypt_nat.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_recrypt_api: $(TESTS)/test_recrypt_api.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_hfhe_depth: $(TESTS)/test_hfhe_depth.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/bench_recrypt_refresh: $(TESTS)/bench_recrypt_refresh.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/bench_recrypt_nat_matrix: $(TESTS)/bench_recrypt_nat_matrix.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/bench_recrypt_deep_api: $(TESTS)/bench_recrypt_deep_api.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/soak_recrypt_nat_prod: $(TESTS)/soak_recrypt_nat_prod.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_r2_attack: $(TESTS)/test_r2_attack.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_ristretto255: $(TESTS)/test_ristretto255.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_zero_proof: $(TESTS)/test_zero_proof.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/test_bound_zero_proof: $(TESTS)/test_bound_zero_proof.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/poc_pc_forge_soundness: $(TESTS)/poc_pc_forge_soundness.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+$(BUILD)/forge_decrypt_payload: $(TESTS)/forge_decrypt_payload.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -I../lib/pvac_ffi -o $@ $<
+
 debug: $(BUILD)/test_main_debug
 sanitize: $(BUILD)/test_main_san
-examples: $(BUILD)/basic_usage $(BUILD)/ml_credit_scoring
+examples: $(BUILD)/basic_usage $(BUILD)/recrypt_usage $(BUILD)/ml_credit_scoring
 test_zero: $(BUILD)/test_zero
 test_lpn: $(BUILD)/test_lpn
 test_fp_core: $(BUILD)/test_fp_core
@@ -100,6 +180,7 @@ test_struct: $(BUILD)/test_struct
 test_struct_v2: $(BUILD)/test_struct_v2
 test_compactness: $(BUILD)/test_compactness
 test_zero_sk: $(BUILD)/test_zero_sk
+test_private_transfer: $(BUILD)/test_private_transfer
 
 
 test: $(BUILD)/test_main
@@ -168,6 +249,87 @@ test-compactness: $(BUILD)/test_compactness
 test-zero-sk: $(BUILD)/test_zero_sk
 	@./$(BUILD)/test_zero_sk
 
+test-private-transfer: $(BUILD)/test_private_transfer
+	@./$(BUILD)/test_private_transfer
+
+test-ct-geq-sign: $(BUILD)/test_ct_geq_sign
+	@./$(BUILD)/test_ct_geq_sign
+
+test-verify-zero: $(BUILD)/test_verify_zero
+	@./$(BUILD)/test_verify_zero
+
+test-range-proof: $(BUILD)/test_range_proof
+	@./$(BUILD)/test_range_proof
+
+test-recrypt: $(BUILD)/test_recrypt
+	@./$(BUILD)/test_recrypt
+
+test-recrypt-native: $(BUILD)/test_recrypt_native
+	@./$(BUILD)/test_recrypt_native
+
+test-recrypt-nat: $(BUILD)/test_recrypt_nat
+	@./$(BUILD)/test_recrypt_nat
+
+test-recrypt-api: $(BUILD)/test_recrypt_api
+	@./$(BUILD)/test_recrypt_api
+
+test-hfhe-depth: $(BUILD)/test_hfhe_depth
+	@./$(BUILD)/test_hfhe_depth
+
+test-r2-attack: $(BUILD)/test_r2_attack
+	@./$(BUILD)/test_r2_attack
+
+test-native: test-recrypt-native test-recrypt-nat test-recrypt-api
+
+test-hfhe-native: test-recrypt-nat test-recrypt-api test-hfhe-depth
+
+test-recrypt-security: test-recrypt-native test-recrypt-nat test-recrypt-api test-recrypt test-r2-attack
+
+test-recrypt-ci: test-recrypt-security bench-recrypt-refresh bench-recrypt-nat-matrix
+
+test-security: test-recrypt-security
+
+bench-recrypt-refresh: $(BUILD)/bench_recrypt_refresh
+	@./$(BUILD)/bench_recrypt_refresh
+
+bench-recrypt-refresh-base: $(BUILD)/bench_recrypt_refresh
+	@PVAC_RECRYPT_BASE=1 ./$(BUILD)/bench_recrypt_refresh
+
+bench-recrypt-nat-matrix: $(BUILD)/bench_recrypt_nat_matrix
+	@./$(BUILD)/bench_recrypt_nat_matrix
+
+bench-recrypt-nat-matrix-long: $(BUILD)/bench_recrypt_nat_matrix
+	@PVAC_NAT_MATRIX_ITERS=64 ./$(BUILD)/bench_recrypt_nat_matrix
+
+bench-recrypt-nat-matrix-base: $(BUILD)/bench_recrypt_nat_matrix
+	@PVAC_NAT_MATRIX_BASE=1 PVAC_NAT_MATRIX_ITERS=8 ./$(BUILD)/bench_recrypt_nat_matrix
+
+bench-recrypt-deep-api: $(BUILD)/bench_recrypt_deep_api
+	@PVAC_DEEP_DEPTH=2 PVAC_DEEP_CADENCES=1,2 PVAC_RESET_DEPTH_MAX=2 ./$(BUILD)/bench_recrypt_deep_api
+
+bench-recrypt-deep-api-920: $(BUILD)/bench_recrypt_deep_api
+	@PVAC_DEEP_DEPTH=920 PVAC_DEEP_CADENCES=1,2 PVAC_RESET_DEPTH_MAX=2 ./$(BUILD)/bench_recrypt_deep_api
+
+bench-recrypt-deep-api-920-full: $(BUILD)/bench_recrypt_deep_api
+	@PVAC_DEEP_DEPTH=920 PVAC_DEEP_CADENCES=1,2,4,8 PVAC_RESET_DEPTH_MAX=2 ./$(BUILD)/bench_recrypt_deep_api
+
+soak-recrypt-nat-prod: $(BUILD)/soak_recrypt_nat_prod
+	@./$(BUILD)/soak_recrypt_nat_prod
+
+test-ristretto255: $(BUILD)/test_ristretto255
+	@./$(BUILD)/test_ristretto255
+
+test-zero-proof: $(BUILD)/test_zero_proof
+	@./$(BUILD)/test_zero_proof
+
+test-bound-zero-proof: $(BUILD)/test_bound_zero_proof
+	@./$(BUILD)/test_bound_zero_proof
+
+poc-pc-forge-soundness: $(BUILD)/poc_pc_forge_soundness
+	@./$(BUILD)/poc_pc_forge_soundness
+
+forge-decrypt-payload: $(BUILD)/forge_decrypt_payload
+
 ml: $(BUILD)/ml_credit_scoring
 	@./$(BUILD)/ml_credit_scoring
 
@@ -177,6 +339,6 @@ clean:
 
 help:
 	@echo "targets: all test test-v test-q test-hg debug sanitize examples clean"
-	@echo "env: PVAC_DBG=0|1|2"
+	@echo "env: PVAC_DBG = 0|1|2"
 
-.PHONY: all test test-v test-q test-hg clean help examples ml
+.PHONY: all libpvac test test-v test-q test-hg test-private-transfer clean help examples ml test-recrypt-native test-recrypt-nat test-recrypt-api test-hfhe-depth test-hfhe-native test-recrypt-security test-recrypt-ci bench-recrypt-refresh bench-recrypt-refresh-base bench-recrypt-nat-matrix bench-recrypt-nat-matrix-long bench-recrypt-nat-matrix-base bench-recrypt-deep-api bench-recrypt-deep-api-920 bench-recrypt-deep-api-920-full recrypt-nat-prod

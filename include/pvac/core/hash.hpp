@@ -4,11 +4,13 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <array>
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
 
 #include "random.hpp"
+#include "field.hpp"
 
 namespace pvac {
 
@@ -189,6 +191,47 @@ inline void sha256_acc_u64(Sha256& s, uint64_t x) {
     store_le64(b, x);
     s.update(b, 8);
 }
+
+
+
+// new
+inline std::array<uint8_t, 32> compute_R_com_base(
+    uint64_t canon_tag, uint64_t ztag, uint64_t nonce_lo, uint64_t nonce_hi,
+    const std::vector<Fp>& R_slots
+) {
+    Sha256 s;
+    s.init();
+
+    s.update("pvac.dom.r_com", 14);
+    sha256_acc_u64(s, canon_tag);
+    sha256_acc_u64(s, ztag);
+    sha256_acc_u64(s, nonce_lo);
+    sha256_acc_u64(s, nonce_hi);
+    sha256_acc_u64(s, (uint64_t)R_slots.size());
+    for (const auto& r : R_slots) {
+        sha256_acc_u64(s, r.lo);
+        sha256_acc_u64(s, r.hi & MASK63);
+    }
+    std::array<uint8_t, 32> out{};
+    s.finish(out.data());
+    return out;
+}
+
+inline std::array<uint8_t, 32> compute_R_com_prod(
+    const std::array<uint8_t, 32>& R_com_a,
+    const std::array<uint8_t, 32>& R_com_b
+) {
+    Sha256 s;
+    s.init();
+    s.update("pvac.dom.r_com", 14);
+    s.update(R_com_a.data(), 32);
+    s.update(R_com_b.data(), 32);
+    std::array<uint8_t, 32> out{};
+    s.finish(out.data());
+    return out;
+}
+
+
 
 struct Shake256 {
     uint64_t st[25];
