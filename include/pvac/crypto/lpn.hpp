@@ -75,18 +75,25 @@ struct AesCtr256 {
 
         rk[0] = k0;
         rk[1] = k1;
+
         rk[2] = key_expand(k0, _mm_aeskeygenassist_si128(k1, 0x01)); k0 = rk[2];
         rk[3] = key_expand2(k1, k0); k1 = rk[3];
+
         rk[4] = key_expand(k0, _mm_aeskeygenassist_si128(k1, 0x02)); k0 = rk[4];
         rk[5] = key_expand2(k1, k0); k1 = rk[5];
+
         rk[6] = key_expand(k0, _mm_aeskeygenassist_si128(k1, 0x04)); k0 = rk[6];
         rk[7] = key_expand2(k1, k0); k1 = rk[7];
+
         rk[8] = key_expand(k0, _mm_aeskeygenassist_si128(k1, 0x08)); k0 = rk[8];
         rk[9] = key_expand2(k1, k0); k1 = rk[9];
+
         rk[10] = key_expand(k0, _mm_aeskeygenassist_si128(k1, 0x10)); k0 = rk[10];
         rk[11] = key_expand2(k1, k0); k1 = rk[11];
+
         rk[12] = key_expand(k0, _mm_aeskeygenassist_si128(k1, 0x20)); k0 = rk[12];
         rk[13] = key_expand2(k1, k0); k1 = rk[13];
+
         rk[14] = key_expand(k0, _mm_aeskeygenassist_si128(k1, 0x40));
 
         ctr = _mm_set_epi64x(0, (long long)nonce);
@@ -95,6 +102,10 @@ struct AesCtr256 {
 
     inline __m128i encrypt_ctr() {
         __m128i t = _mm_xor_si128(ctr, rk[0]);
+
+
+
+
         t = _mm_aesenc_si128(t, rk[1]);
         t = _mm_aesenc_si128(t, rk[2]);
         t = _mm_aesenc_si128(t, rk[3]);
@@ -110,6 +121,10 @@ struct AesCtr256 {
         t = _mm_aesenc_si128(t, rk[13]);
         t = _mm_aesenclast_si128(t, rk[14]);
         ctr = _mm_add_epi64(ctr, _mm_set_epi64x(0, 1));
+
+
+
+        
         return t;
     }
 
@@ -164,16 +179,10 @@ struct AesCtr256 {
     alignas(16) uint64_t buf[2] = {0, 0};
     bool has_buf = false;
 
-    // Emulate x86 _mm_aesenc_si128 semantics:
-    // ShiftRows → SubBytes → MixColumns → AddRoundKey
-    // ARM vaeseq_u8(state, zero) = SubBytes → ShiftRows (commutes with ShiftRows→SubBytes)
-    // then vaesmcq_u8 = MixColumns, then XOR round key
     static inline uint8x16_t aes_round(uint8x16_t state, uint8x16_t zero, uint8x16_t key) {
         return veorq_u8(vaesmcq_u8(vaeseq_u8(state, zero)), key);
     }
 
-    // Emulate x86 _mm_aesenclast_si128 semantics:
-    // ShiftRows → SubBytes → AddRoundKey  (no MixColumns)
     static inline uint8x16_t aes_round_last(uint8x16_t state, uint8x16_t zero, uint8x16_t final_key) {
         return veorq_u8(vaeseq_u8(state, zero), final_key);
     }
