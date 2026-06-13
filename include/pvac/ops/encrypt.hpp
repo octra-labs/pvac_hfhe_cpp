@@ -21,6 +21,8 @@
 #include "../core/ct_safe.hpp"
 #include "../core/seedable_rng.hpp"
 
+#include "../crypto/ristretto255.hpp"
+
 namespace pvac {
 
 namespace alg {

@@ -183,8 +183,7 @@ test_zero_sk: $(BUILD)/test_zero_sk
 test_private_transfer: $(BUILD)/test_private_transfer
 
 
-test: $(BUILD)/test_main
-	@./$(BUILD)/test_main
+test: test-hfhe-native
 
 test-v: $(BUILD)/test_main
 	@PVAC_DBG=2 ./$(BUILD)/test_main

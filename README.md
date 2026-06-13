@@ -25,20 +25,17 @@ ps: look at the attachments.
 
 ```bash
 git clone https://github.com/octra-labs/pvac_hfhe_cpp.git
-cd pvac-hfhe-cpp
+cd pvac_hfhe_cpp
 ```
 ```cpp
 #include <pvac/pvac.hpp>
 ```
 build and run:
 ```bash
-make test # 42 tests
-make examples # usage examples
-make test-prf 
-make test-sigma
-make test-depth
-make test-ct
-make test-hg
+make test-hfhe-native
+PVAC_HFHE_DEPTH_ROUNDS=63 make test-hfhe-depth
+make build/recrypt_usage
+./build/recrypt_usage
 ```
 
 ### example
