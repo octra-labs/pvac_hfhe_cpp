@@ -833,19 +833,38 @@ inline std::array<uint8_t, 32> native_reset_trace_commit(const NativeResetTraceO
     return out;
 }
 
-inline size_t native_reset_proof_opened_branch(const NativeResetProofParams& params, const std::array<uint8_t, 32>& challenge, size_t round, size_t slot) {
-    if (params.branches == 0 || slot >= params.opened_branches)
-        return params.branches;
-    size_t closed = static_cast<size_t>(challenge[round % challenge.size()]) % params.branches;
-    size_t seen = 0;
-    for (size_t branch = 0; branch < params.branches; ++branch) {
-        if (branch == closed)
-            continue;
-        if (seen == slot)
-            return branch;
-        ++seen;
+
+
+// applied the patch (leave the git lab link open for further testing, do not fix without an explicit note)
+// lambda0xe - 0x9882bc (3 Jul)
+
+inline size_t native_reset_challenge_branch(size_t branches, const std::array<uint8_t, 32>& challenge, size_t round, size_t slot, const char* domain) {
+    if (branches == 0)
+        return 0;
+    uint64_t branch_count = static_cast<uint64_t>(branches);
+    uint64_t max = std::numeric_limits<uint64_t>::max();
+    uint64_t limit = max - (max % branch_count);
+    for (uint64_t counter = 0;; ++counter) {
+        Sha256 h;
+        h.init();
+        native_hash_domain(h, domain);
+        h.update(challenge.data(), challenge.size());
+        sha256_acc_u64(h, branch_count);
+        sha256_acc_u64(h, round);
+        sha256_acc_u64(h, slot);
+        sha256_acc_u64(h, counter);
+        std::array<uint8_t, 32> digest{};
+        h.finish(digest.data());
+        uint64_t value = load_le64(digest.data());
+        if (value < limit)
+            return static_cast<size_t>(value % branch_count);
     }
-    return params.branches;
+}
+
+inline size_t native_reset_proof_opened_branch(const NativeResetProofParams& params, const std::array<uint8_t, 32>& challenge, size_t round, size_t slot) {
+    if (params.branches == 0 || params.opened_branches != 1 || slot >= params.opened_branches)
+        return params.branches;
+    return native_reset_challenge_branch(params.branches, challenge, round, slot, "pvac.native.reset.proof.open");
 }
 
 inline std::array<uint8_t, 32> native_reset_proof_response_digest(const NativeResetProofPayload& payload) {
@@ -1516,18 +1535,9 @@ inline std::array<uint8_t, 32> native_reset_arith_challenge(const NativeResetStm
 }
 
 inline size_t native_reset_arith_opened_branch(const NativeResetArithParams& params, const std::array<uint8_t, 32>& challenge, size_t round, size_t slot) {
-    if (params.branches == 0 || slot >= params.opened_branches)
+    if (params.branches == 0 || params.opened_branches != 1 || slot >= params.opened_branches)
         return params.branches;
-    size_t closed = static_cast<size_t>(challenge[round % challenge.size()]) % params.branches;
-    size_t seen = 0;
-    for (size_t branch = 0; branch < params.branches; ++branch) {
-        if (branch == closed)
-            continue;
-        if (seen == slot)
-            return branch;
-        ++seen;
-    }
-    return params.branches;
+    return native_reset_challenge_branch(params.branches, challenge, round, slot, "pvac.native.reset.arith.open");
 }
 
 inline std::array<uint8_t, 32> native_reset_arith_response_digest(const NativeResetArithProof& proof) {

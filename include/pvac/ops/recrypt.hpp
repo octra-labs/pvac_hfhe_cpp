@@ -119,14 +119,20 @@ inline size_t recrypt_compact_terms(const NativeRuntimeHiddenCarrier& clean) {
     return clean.out.target_terms;
 }
 
+// new
+
+inline bool recrypt_query_can_emit_step(const NatAdm& adm, size_t query) {
+    return adm.max_query != 0 && query < adm.max_query - 1;
+}
+
 inline NatStep recrypt_compact_step(const PubKey& pk, const NatKey& key, const Cipher& ct, const NatAdm& adm = nat_chain(), size_t query = 0) {
-    if (query >= adm.max_query)
+    if (!recrypt_query_can_emit_step(adm, query))
         throw std::runtime_error("pvac: compact refresh query rejected");
     return nat_step(adm, recrypt_compact(pk, key, ct, adm, query), query + 1);
 }
 
 inline RecryptResult recrypt_result(const PubKey& pk, const NatKey& key, const Cipher& ct, const NatAdm& adm = nat_chain(), size_t query = 0, bool delivery = false) {
-    if (query >= adm.max_query)
+    if (!recrypt_query_can_emit_step(adm, query))
         throw std::runtime_error("pvac: refresh query rejected");
     RecryptResult out;
     out.adm = adm;

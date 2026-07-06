@@ -1,3 +1,7 @@
+// cleaned up the tests and applied fixes to the recrypt (keeping v18.03 for the bounty)
+
+
+
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -12,7 +16,7 @@ static void must(bool ok, const std::string& msg) {
     if (ok) {
         return;
     }
-    std::cerr << "FAIL: " << msg << "\n";
+    std::cerr << "fail = " << msg << "\n";
     std::exit(1);
 }
 
@@ -64,6 +68,46 @@ static bool dies(F f) {
     } catch (...) {
         return true;
     }
+}
+// applied the patch (leave the git lab link open for further testing, do not fix without an explicit note)
+// lambda0xe - 0x9882bc (3 Jul)
+
+static bool branch_seen_all(const std::array<uint8_t, 3>& seen) {
+    return seen[0] && seen[1] && seen[2];
+}
+
+static std::array<uint8_t, 32> selector_challenge(size_t seed) {
+    std::array<uint8_t, 32> challenge{};
+    for (size_t i = 0; i < challenge.size(); ++i) {
+        challenge[i] = static_cast<uint8_t>((seed * 29 + i * 37 + 11) & 255);
+    }
+    return challenge;
+}
+
+static void run_branch_selector_regression() {
+    auto proof_params = make_native_reset_proof_params();
+    auto arith_params = native_reset_arith_params_from_proof(proof_params);
+    std::array<uint8_t, 3> proof_seen{};
+    std::array<uint8_t, 3> arith_seen{};
+    for (size_t seed = 0; seed < 4096 && (!branch_seen_all(proof_seen) || !branch_seen_all(arith_seen)); ++seed) {
+        auto challenge = selector_challenge(seed);
+        auto proof_branch = native_reset_proof_opened_branch(proof_params, challenge, seed, 0);
+        auto arith_branch = native_reset_arith_opened_branch(arith_params, challenge, seed, 0);
+        if (proof_branch < proof_seen.size())
+            proof_seen[proof_branch] = 1;
+        if (arith_branch < arith_seen.size())
+            arith_seen[arith_branch] = 1;
+    }
+    must(branch_seen_all(proof_seen), "native reset proof branch selector reaches all openings");
+    must(branch_seen_all(arith_seen), "native reset arithmetic branch selector reaches all openings");
+    auto bad_proof_params = proof_params;
+    bad_proof_params.opened_branches = 2;
+    auto challenge = selector_challenge(0);
+    must(native_reset_proof_opened_branch(bad_proof_params, challenge, 0, 0) == bad_proof_params.branches, "native reset proof selector rejects unsupported opening count");
+    auto bad_arith_params = arith_params;
+    bad_arith_params.opened_branches = 2;
+    must(native_reset_arith_opened_branch(bad_arith_params, challenge, 0, 0) == bad_arith_params.branches, "native reset arithmetic selector rejects unsupported opening count");
+    std::cout << "native_reset_branch_selector = 1\n";
 }
 
 static void need(const NatStep& s, size_t terms, const std::string& msg) {
@@ -131,10 +175,10 @@ static void run_lin(const PubKey& pk, const NatKey& rk, const Cipher& x, const C
     auto hy = nat_in(pk, y, adm);
     auto hz = nat_in(pk, z, adm);
     auto xy = nat_add(adm, nat_scale(adm, hx, fp(3)), nat_scale(adm, hy, fp(5)));
-        auto zc = nat_add_const(adm, hz, fp(9));
-        auto t = nat_add(adm, xy, zc);
-        need(t, 3, "nat lin stage");
-        auto r = nat_recrypt(pk, rk, adm, t);
+    auto zc = nat_add_const(adm, hz, fp(9));
+    auto t = nat_add(adm, xy, zc);
+    need(t, 3, "nat lin stage");
+    auto r = nat_recrypt(pk, rk, adm, t);
     reset_ok(pk, rk, adm, t, r, 1, "nat lin reset");
     std::cout << "nat_lin = 1\n";
 }
@@ -144,7 +188,7 @@ static void run_quad(const PubKey& pk, const NatKey& rk, const Cipher& x, const 
     auto hx = nat_in(pk, x, adm);
     auto hy = nat_in(pk, y, adm);
     auto hz = nat_in(pk, z, adm);
-        auto hw = nat_in(pk, w, adm);
+    auto hw = nat_in(pk, w, adm);
     auto a = nat_add(adm, nat_add(adm, hx, hy), hz);
     auto b = nat_add_const(adm, nat_add(adm, hx, hw), fp(4));
     auto t = nat_mul(adm, a, b);
@@ -163,18 +207,12 @@ static void run_chain(const PubKey& pk, const NatKey& rk, const Cipher& x, const
     auto s = nat_add(adm, hx, hy);
     auto t = nat_mul(adm, s, nat_add_const(adm, s, fp(9)));
     need(t, 4, "nat chain stage 1");
-   
-   
-   
-   
     auto r1 = nat_recrypt(pk, rk, adm, t);
     reset_ok(pk, rk, adm, t, r1, 1, "nat chain reset 1");
     auto u = nat_mul(adm, r1, hz);
     need(u, 2, "nat chain stage 2");
     auto r2 = nat_recrypt(pk, rk, adm, u);
-        
-    
-            reset_ok(pk, rk, adm, u, r2, 2, "nat chain reset 2");
+    reset_ok(pk, rk, adm, u, r2, 2, "nat chain reset 2");
     auto v = nat_mul(adm, r2, hw);
     need(v, 2, "nat chain stage 3");
     auto r3 = nat_recrypt(pk, rk, adm, v);
@@ -184,9 +222,6 @@ static void run_chain(const PubKey& pk, const NatKey& rk, const Cipher& x, const
 
 static void run_wide(const PubKey& pk, const NatKey& rk, const Cipher& x, const Cipher& y, const Cipher& z, const Cipher& w) {
     auto adm = nat_wide();
-
-
-    //
     auto hx = nat_in(pk, x, adm);
     auto hy = nat_in(pk, y, adm);
     auto hz = nat_in(pk, z, adm);
@@ -194,23 +229,18 @@ static void run_wide(const PubKey& pk, const NatKey& rk, const Cipher& x, const 
     auto a = nat_add(adm, nat_add(adm, nat_add(adm, hx, hy), hz), hw);
     auto bx = nat_scale(adm, hx, fp(2));
     auto by = nat_scale(adm, hy, fp(3));
-                auto bz = nat_scale(adm, hz, fp(5));
-                auto bw = nat_add_const(adm, nat_scale(adm, hw, fp(7)), fp(11));
-                auto b = nat_add(adm, nat_add(adm, nat_add(adm, bx, by), bz), bw);
-              
-              
-              ///
-                need(a, 4, "nat wide left");
-                need(b, 4, "nat wide right");
-                auto t = nat_mul(adm, a, b);
-                need(t, 16, "nat wide stage 1");
-                auto r1 = nat_recrypt(pk, rk, adm, t);
-                reset_ok(pk, rk, adm, t, r1, 1, "nat wide reset 1");
-                auto u = nat_mul(adm, r1, a);
+    auto bz = nat_scale(adm, hz, fp(5));
+    auto bw = nat_add_const(adm, nat_scale(adm, hw, fp(7)), fp(11));
+    auto b = nat_add(adm, nat_add(adm, nat_add(adm, bx, by), bz), bw);
+    need(a, 4, "nat wide left");
+    need(b, 4, "nat wide right");
+    auto t = nat_mul(adm, a, b);
+    need(t, 16, "nat wide stage 1");
+    auto r1 = nat_recrypt(pk, rk, adm, t);
+    reset_ok(pk, rk, adm, t, r1, 1, "nat wide reset 1");
+    auto u = nat_mul(adm, r1, a);
     need(u, 16, "nat wide stage 2");
     auto r2 = nat_recrypt(pk, rk, adm, u);
-
-
     reset_ok(pk, rk, adm, u, r2, 2, "nat wide reset 2");
     must(dies([&]() { auto bad = nat_mul(adm, t, a); (void)bad; }), "nat wide overflow rejected");
     std::cout << "nat_wide = 1\n";
@@ -251,28 +281,16 @@ static void prod_gate_ok(const PubKey& pk, const NatKey& rk, const NatAdm& adm, 
 
 static void run_prod_gate(const PubKey& pk, const SecKey& sk, const Cipher& x, const Cipher& y, const Cipher& z, const Cipher& w) {
     auto rk = make_nat_key(pk, sk, nat_prod_adm().max_query, nat_prod_budget());
-//
-
-
     prod_gate_ok(pk, rk, nat_lin(), "nat prod lin");
     prod_gate_ok(pk, rk, nat_quad(), "nat prod quad");
     prod_gate_ok(pk, rk, nat_chain(), "nat prod chain");
     prod_gate_ok(pk, rk, nat_wide(), "nat prod wide");
     prod_gate_ok(pk, rk, nat_vec4(), "nat prod vec4");
     prod_gate_ok(pk, rk, nat_vec8(), "nat prod vec8");
-
-
-
-    ////
-
     auto adm = nat_prod_adm();
     auto hx = nat_in(pk, x, adm);
     auto hy = nat_in(pk, y, adm);
     auto hz = nat_in(pk, z, adm);
-
-
-
-
     auto hw = nat_in(pk, w, adm);
     auto left = nat_add(adm, nat_add(adm, hx, hy), nat_add(adm, hz, hw));
     auto right = nat_add_const(adm, left, fp(17));
@@ -296,25 +314,22 @@ static void run_prod_gate(const PubKey& pk, const SecKey& sk, const Cipher& x, c
     must(nat_prod_gate(pk, rk, too_query).rejects_profile, "nat prod rejects query");
     auto too_alpha = nat_prod_adm();
     too_alpha.alpha_bits += 1;
-        must(nat_prod_gate(pk, rk, too_alpha).rejects_profile, "nat prod rejects alpha bits");
-        auto too_row = nat_prod_adm();
-        too_row.row_bits += 1;
-        must(nat_prod_gate(pk, rk, too_row).rejects_profile, "nat prod rejects row bits");
-        auto sha_key = rk;
-        sha_key.budget.proof = NativeResetProofProfileKind::SHA_COMPAT;
-        sha_key.view = rku_view(pk, sha_key);
-        auto sha_gate = nat_prod_gate(pk, sha_key, nat_prod_adm());
-        must(!sha_gate.admitted && sha_gate.rejects_sha_compat, "nat prod rejects sha compat");
-        auto weak_key = rk;
-        weak_key.budget.target_bits = 64;
-        weak_key.view = rku_view(pk, weak_key);
-        auto weak_gate = nat_prod_gate(pk, weak_key, nat_prod_adm());
-        must(!weak_gate.admitted && weak_gate.rejects_underbudget, "nat prod rejects underbudget");
-        auto output_key = rk;
-        output_key.budget.max_output_tags = nat_prod_budget().max_output_tags + 1;
-
-
-
+    must(nat_prod_gate(pk, rk, too_alpha).rejects_profile, "nat prod rejects alpha bits");
+    auto too_row = nat_prod_adm();
+    too_row.row_bits += 1;
+    must(nat_prod_gate(pk, rk, too_row).rejects_profile, "nat prod rejects row bits");
+    auto sha_key = rk;
+    sha_key.budget.proof = NativeResetProofProfileKind::SHA_COMPAT;
+    sha_key.view = rku_view(pk, sha_key);
+    auto sha_gate = nat_prod_gate(pk, sha_key, nat_prod_adm());
+    must(!sha_gate.admitted && sha_gate.rejects_sha_compat, "nat prod rejects sha compat");
+    auto weak_key = rk;
+    weak_key.budget.target_bits = 64;
+    weak_key.view = rku_view(pk, weak_key);
+    auto weak_gate = nat_prod_gate(pk, weak_key, nat_prod_adm());
+    must(!weak_gate.admitted && weak_gate.rejects_underbudget, "nat prod rejects underbudget");
+    auto output_key = rk;
+    output_key.budget.max_output_tags = nat_prod_budget().max_output_tags + 1;
     output_key.view = rku_view(pk, output_key);
     auto output_gate = nat_prod_gate(pk, output_key, nat_prod_adm());
     must(!output_gate.admitted && output_gate.rejects_output_wide, "nat prod rejects output wide");
@@ -325,6 +340,7 @@ static void run_prod_gate(const PubKey& pk, const SecKey& sk, const Cipher& x, c
 }
 
 int main() {
+    run_branch_selector_regression();
     PubKey pk;
     SecKey sk;
     keygen(prm(), pk, sk);
@@ -333,9 +349,6 @@ int main() {
     auto y = enc(pk, sk, 7, 12);
     auto z = enc(pk, sk, 11, 13);
     auto w = enc(pk, sk, 13, 14);
-
-
-
     run_lin(pk, rk, x, y, z);
     run_quad(pk, rk, x, y, z, w);
     run_chain(pk, rk, x, y, z, w);
@@ -344,10 +357,5 @@ int main() {
     run_vec8(pk, sk, rk);
     run_negative(pk, rk, x, y);
     run_prod_gate(pk, sk, x, y, z, w);
-
-
-
-
-    
     return 0;
 }
