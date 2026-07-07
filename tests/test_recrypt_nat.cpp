@@ -116,10 +116,6 @@ static void need(const NatStep& s, size_t terms, const std::string& msg) {
     must(!h.out.visible_beta, msg + " no visible beta");
 }
 
-
-
-// test for fix (0x65682)
-
 static bool has_native_source(const PubKey& pk, const Cipher& ct) {
     for (const auto& layer : ct.L) {
         if (layer.rule == RRule::BASE && ru_src(pk, layer)) {
@@ -129,38 +125,28 @@ static bool has_native_source(const PubKey& pk, const Cipher& ct) {
     return false;
 }
 
+
+
+// new (f)
+
 static void run_key_material(const PubKey& pk, const SecKey& sk, const NatKey& rk) {
     must(nat_key_safe(pk, rk), "nat key safe");
-
-        must(rk.sec.size() == sk.prf_k.size(), "nat key material count");
+    must(rk.sec.size() == sk.prf_k.size(), "nat key material count");
     for (size_t i = 0; i < rk.sec.size(); ++i) {
-
         must(!has_native_source(pk, rk.sec[i]), "nat key material avoids native source");
         must(ct::fp_eq(dec_value_native_local(pk, sk, rk.sec[i]), fp_from_u64(sk.prf_k[i])), "nat key material decrypts");
     }
     auto bad = rk;
     auto seed = tag(9001);
-
-    // nt2
     bad.sec[0] = enc_ru_value_seeded(pk, sk, sk.prf_k[0], seed.data(), 4);
     bad.view = rku_view(pk, bad);
-
-
     must(!nat_key_safe(pk, bad), "nat key rejects native source material");
     auto legacy = rk;
     legacy.sec[0].L[0].PC.clear();
-
-    // lg + mat (?) next (0x65682 !)
     legacy.view = rku_view(pk, legacy);
     must(!nat_key_safe(pk, legacy), "nat key rejects unbound material");
     std::cout << "nat_key_material = 1\n";
 }
-
-
-
-
-
-
 
 static void reset_ok(const PubKey& pk, const NatKey& rk, const NatAdm& adm, const NatStep& src, const NatStep& out, size_t q, const std::string& msg) {
     need(out, adm.out_terms, msg);

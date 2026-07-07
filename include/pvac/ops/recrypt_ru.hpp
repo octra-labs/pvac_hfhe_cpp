@@ -355,9 +355,6 @@ inline std::array<uint8_t, 32> rku_view(const PubKey& pk, const Rku& rk) {
     return out;
 }
 
-
-// closed in the same way (will check further in build 0x65682)
-
 inline bool rku_sec_cipher_safe(const PubKey& pk, const Cipher& ct) {
     if (!is_cipher_compatible_with_pubkey(pk, ct) || ct.L.empty())
         return false;

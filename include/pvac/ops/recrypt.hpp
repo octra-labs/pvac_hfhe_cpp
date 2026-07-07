@@ -119,8 +119,6 @@ inline size_t recrypt_compact_terms(const NativeRuntimeHiddenCarrier& clean) {
     return clean.out.target_terms;
 }
 
-// new
-
 inline bool recrypt_query_can_emit_step(const NatAdm& adm, size_t query) {
     return adm.max_query != 0 && query < adm.max_query - 1;
 }

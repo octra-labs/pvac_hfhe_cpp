@@ -833,11 +833,6 @@ inline std::array<uint8_t, 32> native_reset_trace_commit(const NativeResetTraceO
     return out;
 }
 
-
-
-// applied the patch (leave the git lab link open for further testing, do not fix without an explicit note)
-// lambda0xe - 0x9882bc (3 Jul)
-
 inline size_t native_reset_challenge_branch(size_t branches, const std::array<uint8_t, 32>& challenge, size_t round, size_t slot, const char* domain) {
     if (branches == 0)
         return 0;

@@ -208,10 +208,6 @@ inline std::array<uint8_t, 32> compute_R_com_base(
     sha256_acc_u64(s, nonce_lo);
     sha256_acc_u64(s, nonce_hi);
     sha256_acc_u64(s, (uint64_t)R_slots.size());
-    for (const auto& r : R_slots) {
-        sha256_acc_u64(s, r.lo);
-        sha256_acc_u64(s, r.hi & MASK63);
-    }
     std::array<uint8_t, 32> out{};
     s.finish(out.data());
     return out;

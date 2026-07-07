@@ -1,3 +1,9 @@
+// cleaned up the tests and applied fixes to the recrypt (keeping v18.03 for the bounty)
+
+
+// new after 7 jul 26
+
+
 #include <cstdlib>
 #include <iostream>
 #include <pvac/pvac_native.hpp>
@@ -11,11 +17,6 @@ static void must(bool ok, const char* msg) {
     std::cerr << "fail = " << msg << "\n";
     std::exit(1);
 }
-
-
-
-// cleaned up the tests and applied fixes to the recrypt (keeping v18.03 for the bounty)
-
 
 template <class F>
 static bool dies(F f) {
@@ -44,9 +45,6 @@ int main() {
     must(recrypt_key_safe(pk, key), "canonical recrypt key safe");
     auto a = enc(pk, sk, 7);
     auto b = enc(pk, sk, 11);
-
-
-    
     auto ab = ct_mul(pk, a, b);
     must(ct::fp_eq(dec1(pk, sk, ab), fp_from_u64(77)), "canonical cipher decrypts");
     auto clean = recrypt(pk, key, ab);
@@ -87,7 +85,6 @@ int main() {
     auto hy = nat_in(pk, b, adm);
     auto stage = nat_mul(adm, hx, hy);
     auto reset = recrypt_prod_reset(pk, prod_key, adm, stage);
-
     must(nat_terms(reset) < nat_terms(stage), "canonical hidden reset reduces support");
     must(nat_prod_verify(pk, prod_key, adm, stage, reset), "canonical hidden reset verifies");
     std::cout << "canonical recrypt api = 1\n";
