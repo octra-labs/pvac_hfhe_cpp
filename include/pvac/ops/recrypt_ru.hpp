@@ -355,6 +355,23 @@ inline std::array<uint8_t, 32> rku_view(const PubKey& pk, const Rku& rk) {
     return out;
 }
 
+
+// closed in the same way (will check further in build 0x65682)
+
+inline bool rku_sec_cipher_safe(const PubKey& pk, const Cipher& ct) {
+    if (!is_cipher_compatible_with_pubkey(pk, ct) || ct.L.empty())
+        return false;
+    for (const auto& layer : ct.L) {
+        if (layer.rule != RRule::BASE)
+            return false;
+        if (ru_src(pk, layer))
+            return false;
+        if (layer.PC.size() != ct.slots)
+            return false;
+    }
+    return true;
+}
+
 inline bool rku_safe(const PubKey& pk, const Rku& rk) {
     if (!native_chosen_digest_eq(rk.key, native_runtime_pubkey_digest(pk)))
         return false;
@@ -363,7 +380,7 @@ inline bool rku_safe(const PubKey& pk, const Rku& rk) {
     if (rk.prf != 4 || rk.lpn != 0 || rk.sec.size() != rk.prf)
         return false;
     for (const auto& ct : rk.sec) {
-        if (!ru_cipher(pk, ct))
+        if (!rku_sec_cipher_safe(pk, ct))
             return false;
     }
     return native_chosen_digest_eq(rk.view, rku_view(pk, rk));
@@ -488,7 +505,7 @@ inline Rku make_rku(const PubKey& pk, const SecKey& sk, size_t queries = 64, con
     rk.sec.reserve(rk.prf + rk.lpn);
     for (size_t i = 0; i < rk.prf; ++i) {
         auto seed = rku_seed(rk.dom, 1, i);
-        rk.sec.push_back(enc_ru_value_seeded(pk, sk, sk.prf_k[i], seed.data(), 4));
+        rk.sec.push_back(enc_value_seeded(pk, sk, sk.prf_k[i], seed.data()));
     }
     rk.view = rku_view(pk, rk);
     rk.safe = native_reset_chosen_policy_ok(rk.policy);
