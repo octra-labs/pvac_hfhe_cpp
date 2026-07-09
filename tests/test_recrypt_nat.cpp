@@ -125,15 +125,25 @@ static bool has_native_source(const PubKey& pk, const Cipher& ct) {
     return false;
 }
 
+//
 
 
-// new (f)
+static size_t base_layer_count(const Cipher& ct) {
+    size_t n = 0;
+    for (const auto& layer : ct.L) {
+        if (layer.rule == RRule::BASE) {
+            ++n;
+        }
+    }
+    return n;
+}
 
 static void run_key_material(const PubKey& pk, const SecKey& sk, const NatKey& rk) {
     must(nat_key_safe(pk, rk), "nat key safe");
     must(rk.sec.size() == sk.prf_k.size(), "nat key material count");
     for (size_t i = 0; i < rk.sec.size(); ++i) {
         must(!has_native_source(pk, rk.sec[i]), "nat key material avoids native source");
+        must(base_layer_count(rk.sec[i]) == 2, "nat key material wrapped");
         must(ct::fp_eq(dec_value_native_local(pk, sk, rk.sec[i]), fp_from_u64(sk.prf_k[i])), "nat key material decrypts");
     }
     auto bad = rk;

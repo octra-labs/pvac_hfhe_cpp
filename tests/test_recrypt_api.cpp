@@ -1,9 +1,3 @@
-// cleaned up the tests and applied fixes to the recrypt (keeping v18.03 for the bounty)
-
-
-// new after 7 jul 26
-
-
 #include <cstdlib>
 #include <iostream>
 #include <pvac/pvac_native.hpp>
