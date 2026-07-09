@@ -696,26 +696,18 @@ inline NativeResetLayerTraceDecision decide_native_reset_layer_trace(const Nativ
     decision.rejects_basis_oracle = !proof.no_basis_oracle;
     decision.params = native_reset_arith_params_ok(proof.params);
     decision.transcript =
-        (proof.kind == NativeResetLayerTraceKind::BRANCH_SHA256 || proof.kind == NativeResetLayerTraceKind::FIELD_NATIVE) &&
+        proof.kind == NativeResetLayerTraceKind::FIELD_NATIVE &&
         native_digest_eq(proof.old_layer_digest, old_layer_digest) &&
         native_digest_eq(proof.new_layer_digest, new_layer_digest) &&
         native_digest_eq(proof.challenge, native_reset_layer_trace_challenge(proof, old_layer_digest, new_layer_digest));
-    if (proof.kind == NativeResetLayerTraceKind::BRANCH_SHA256) {
-        decision.openings = decision.transcript && native_reset_layer_trace_openings_ok(proof);
-    } else {
-        decision.openings = decision.transcript;
-    }
+    decision.openings = decision.transcript;
     decision.response = decision.openings && native_digest_eq(proof.response_digest, native_reset_layer_trace_response_digest(proof));
     decision.message = decision.response && proof.message_bound;
     decision.digest = decision.response && proof.digest_bound;
-    decision.base_binding = decision.response && proof.base_binding_relation;
+    decision.base_binding = false;
     decision.product_binding = decision.response && proof.product_binding_relation;
-    if (proof.kind == NativeResetLayerTraceKind::BRANCH_SHA256) {
-        decision.sha = decision.response && proof.sha_transition && native_reset_layer_trace_sha_stack_ok(proof);
-    } else {
-        auto field_decision = decide_native_reset_field_proof(proof.field_proof, old_layer_digest, new_layer_digest);
-        decision.sha = decision.response && proof.field_transition && field_decision.admitted;
-    }
+    auto field_decision = decide_native_reset_field_proof(proof.field_proof, old_layer_digest, new_layer_digest);
+    decision.sha = decision.response && proof.field_transition && field_decision.admitted;
     decision.secrecy =
         decision.response &&
         proof.hides_witness &&

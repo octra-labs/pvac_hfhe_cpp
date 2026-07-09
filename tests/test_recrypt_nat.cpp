@@ -104,6 +104,56 @@ static void run_branch_selector_regression() {
     std::cout << "native_reset_branch_selector = 1\n";
 }
 
+
+// pums 2.
+
+static Layer test_base_layer(const PubKey& pk, const SecKey& sk, uint64_t lo, uint64_t hi, size_t slots, std::vector<Fp>& r) {
+    Layer layer{};
+    layer.rule = RRule::BASE;
+    layer.seed.nonce = Nonce128{lo, hi};
+    layer.seed.ztag = prg_layer_ztag(pk.canon_tag, layer.seed.nonce);
+    r = prf_R_slots(pk, sk, layer.seed, slots);
+    layer.R_com = compute_R_com_base(pk.canon_tag, layer.seed.ztag, layer.seed.nonce.lo, layer.seed.nonce.hi, r);
+    compute_layer_PC(layer, sk, r, slots);
+    return layer;
+}
+
+static void run_layer_binding_policy(const PubKey& pk, const SecKey& sk) {
+    NativeResetStmt stmt;
+    stmt.c = {fp(9)};
+    stmt.alpha = {{fp(1)}};
+    stmt.target_terms = 1;
+    stmt.bound = HiddenCoeffBound{1, 8, 8};
+    NativeResetOutput out;
+    out.c = {fp(9)};
+    out.beta = {{fp(1)}};
+    NativeResetLayerWitness wit;
+    wit.canon_tag = pk.canon_tag;
+    std::vector<Fp> old_r;
+    std::vector<Fp> new_r;
+    wit.old_layers.push_back(test_base_layer(pk, sk, 101, 202, 1, old_r));
+    wit.new_layers.push_back(test_base_layer(pk, sk, 303, 404, 1, new_r));
+    wit.old_r = {old_r};
+    wit.new_r = {new_r};
+    NativeResetSecrets sec;
+    sec.old_x = {{fp_inv(old_r[0])}};
+    sec.new_y = {{fp_inv(new_r[0])}};
+    auto params = make_native_reset_proof_params();
+    auto seed = tag(5151);
+    auto old_digest = native_reset_layer_stack_digest(wit.old_layers);
+    auto new_digest = native_reset_layer_stack_digest(wit.new_layers);
+    auto sha_trace = make_native_reset_sha_compat_trace_boundary(wit, params, seed);
+    auto field_trace = make_native_reset_field_layer_trace_boundary(wit, params, seed);
+    must(!decide_native_reset_layer_trace(sha_trace, old_digest, new_digest).admitted, "native reset rejects sha trace");
+    must(decide_native_reset_field_proof(field_trace.field_proof, old_digest, new_digest).admitted, "native reset field subproof checks product stack");
+    must(!decide_native_reset_layer_trace(field_trace, old_digest, new_digest).admitted, "native reset rejects unbound field trace");
+    auto sha_layer = make_native_reset_layer_sha_compat_proof(stmt, out, wit, sec, params, seed);
+    auto field_layer = make_native_reset_layer_field_proof(stmt, out, wit, sec, params, seed);
+    must(!decide_native_reset_layer_proof(stmt, out, sha_layer).admitted, "native reset rejects sha layer proof");
+    must(!decide_native_reset_layer_proof(stmt, out, field_layer).admitted, "native reset rejects unbound field layer proof");
+    std::cout << "native_reset_layer_binding = 1\n";
+}
+
 static void need(const NatStep& s, size_t terms, const std::string& msg) {
     auto& h = nat_carrier(s);
     must(native_runtime_carrier_ok(h), msg + " ok");
@@ -388,6 +438,7 @@ int main() {
     PubKey pk;
     SecKey sk;
     keygen(prm(), pk, sk);
+    run_layer_binding_policy(pk, sk);
     auto rk = make_nat_key(pk, sk, 128);
     auto x = enc(pk, sk, 5, 11);
     auto y = enc(pk, sk, 7, 12);
