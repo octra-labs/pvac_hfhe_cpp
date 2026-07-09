@@ -129,9 +129,15 @@ inline std::array<uint8_t, 32> hidden_coeff_stmt_digest(const HiddenCoeffStmt& s
     h.update("pvac.native.reset.statement", std::strlen("pvac.native.reset.statement"));
     hidden_coeff_acc_bound(h, stmt.bound);
     sha256_acc_u64(h, stmt.alpha.size());
-    for (const auto& alpha : stmt.alpha) {
-        hidden_coeff_acc_fp(h, alpha);
-    }
+    // SECURITY: do not hash the secret coefficient values into this digest.
+    // statement_digest is published in the native-reset transcript, every other input
+    // is public (the bound advertises alpha_bits), and there is no secret salt, so
+    // committing the secret `alpha` here turns statement_digest into a brute-force
+    // oracle for low-entropy coefficients: an observer recomputes SHA256 over public
+    // bound + candidate alpha until it matches. This is the same class of bug as the
+    // R_com plaintext oracle removed in cdc6a52. `alpha` remains bound through the
+    // arithmetic proof's output_digest (out.c / out.beta are derived from alpha), so
+    // hashing the raw values here is redundant for soundness and only leaks them.
     std::array<uint8_t, 32> out{};
     h.finish(out.data());
     return out;
