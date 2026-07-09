@@ -56,6 +56,47 @@ static bool old_candidate_matches_r_com(const PubKey& pk, const Cipher& c, const
     return old_public == old_candidate;
 }
 
+
+
+// pums pums
+
+static Fp pow_small(Fp a, uint64_t e) {
+    Fp acc = fp_from_u64(1);
+
+    while (e) {
+        if (e & 1) {
+            acc = fp_mul(acc, a);
+        }
+
+        a = fp_mul(a, a);
+        e >>= 1;
+    }
+
+    return acc;
+}
+
+static bool same_fp(const Fp& a, const Fp& b) {
+    return a.lo == b.lo && a.hi == b.hi;
+}
+
+static bool keygen_roots_ok(const PubKey& pk) {
+    Fp acc = fp_from_u64(1);
+    Fp g = pk.powg_B[1];
+
+    for (int i = 0; i < pk.prm.B; ++i) {
+        if (!same_fp(pk.powg_B[i], acc)) {
+            return false;
+        }
+
+        acc = fp_mul(acc, g);
+    }
+
+    return same_fp(acc, fp_from_u64(1))
+        && !same_fp(g, fp_from_u64(1))
+        && same_fp(pow_small(pk.omega_B, static_cast<uint64_t>(pk.prm.B)), fp_from_u64(1))
+        && !same_fp(pk.omega_B, fp_from_u64(1));
+}
+
 int main() {
     Params p;
     p.noise_entropy_bits = 128.0;
@@ -74,12 +115,14 @@ int main() {
     bool right = candidate_matches_r_com(pk, c, m);
     bool bad = candidate_matches_r_com(pk, c, wrong);
     bool roundtrip = dec_value(pk, sk, c).lo == m.lo && dec_value(pk, sk, c).hi == m.hi;
+    bool keygen_roots = keygen_roots_ok(pk);
 
+    std::cout << "keygen_roots = " << keygen_roots << "\n";
     std::cout << "old_oracle_right = " << old_right << "\n";
     std::cout << "old_oracle_wrong = " << old_bad << "\n";
     std::cout << "oracle_right = " << right << "\n";
     std::cout << "oracle_wrong = " << bad << "\n";
     std::cout << "roundtrip = " << roundtrip << "\n";
 
-    return (old_right && !old_bad && right && bad && roundtrip) ? 0 : 1;
+    return (keygen_roots && old_right && !old_bad && right && bad && roundtrip) ? 0 : 1;
 }

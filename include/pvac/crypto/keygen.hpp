@@ -49,6 +49,21 @@ inline std::vector<int> factor_small(int n) {
     return p;
 }
 
+inline Fp fp_pow_u128(Fp a, u128 e) {
+    Fp acc = fp_from_u64(1);
+
+    while (e) {
+        if (e & 1) {
+            acc = fp_mul(acc, a);
+        }
+
+        a = fp_mul(a, a);
+        e >>= 1;
+    }
+
+    return acc;
+}
+
 inline void keygen(const Params & prm, PubKey & pk, SecKey & sk) {
     require_params(prm);
     pk.prm = prm;
@@ -90,18 +105,7 @@ inline void keygen(const Params & prm, PubKey & pk, SecKey & sk) {
 
     for (;;) {
         Fp h = rand_fp();
-        Fp base = h;
-        Fp acc = fp_from_u64(1);
-        u128 e = E;
-
-        while (e) {
-            if (e & 1) {
-                acc = fp_mul(acc, base);
-            }
-
-            base = fp_mul(base, base);
-            e >>= 1;
-        }
+        Fp acc = fp_pow_u128(h, E);
 
         if (!ct::fp_is_one(acc)) {
             g = acc;
@@ -120,7 +124,7 @@ inline void keygen(const Params & prm, PubKey & pk, SecKey & sk) {
 
     for (;;) {
         Fp h = rand_fp();
-        Fp w = fp_pow_u64(h, (uint64_t)(pm1 / (u128)pk.prm.B));
+        Fp w = fp_pow_u128(h, E);
 
         if (ct::fp_is_one(w)) {
             continue;
@@ -165,7 +169,6 @@ inline void keygen(const Params & prm, PubKey & pk, SecKey & sk) {
 
 
 
-// !!!!!!!!!!!
 inline void keygen_from_seed(const Params& prm, PubKey& pk, SecKey& sk, const uint8_t wallet_privkey[32]) {
     require_params(prm);
     pk.prm = prm;
@@ -249,14 +252,7 @@ inline void keygen_from_seed(const Params& prm, PubKey& pk, SecKey& sk, const ui
     Fp g;
     for (;;) {
         Fp h = rand_fp_det();
-        Fp base = h;
-        Fp acc = fp_from_u64(1);
-        u128 e = E;
-        while (e) {
-            if (e & 1) acc = fp_mul(acc, base);
-            base = fp_mul(base, base);
-            e >>= 1;
-        }
+        Fp acc = fp_pow_u128(h, E);
         if (!ct::fp_is_one(acc)) { g = acc; break; }
     }
 
@@ -267,7 +263,7 @@ inline void keygen_from_seed(const Params& prm, PubKey& pk, SecKey& sk, const ui
     auto primes = factor_small(pk.prm.B);
     for (;;) {
         Fp h = rand_fp_det();
-        Fp w = fp_pow_u64(h, (uint64_t)(pm1 / (u128)pk.prm.B));
+        Fp w = fp_pow_u128(h, E);
         if (ct::fp_is_one(w)) continue;
         bool ok = true;
         for (int p : primes) {
