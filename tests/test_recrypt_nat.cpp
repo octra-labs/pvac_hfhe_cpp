@@ -125,9 +125,6 @@ static bool has_native_source(const PubKey& pk, const Cipher& ct) {
     return false;
 }
 
-//
-
-
 static size_t base_layer_count(const Cipher& ct) {
     size_t n = 0;
     for (const auto& layer : ct.L) {
@@ -146,11 +143,22 @@ static void run_key_material(const PubKey& pk, const SecKey& sk, const NatKey& r
         must(base_layer_count(rk.sec[i]) == 2, "nat key material wrapped");
         must(ct::fp_eq(dec_value_native_local(pk, sk, rk.sec[i]), fp_from_u64(sk.prf_k[i])), "nat key material decrypts");
     }
-    auto bad = rk;
     auto seed = tag(9001);
-    bad.sec[0] = enc_ru_value_seeded(pk, sk, sk.prf_k[0], seed.data(), 4);
-    bad.view = rku_view(pk, bad);
-    must(!nat_key_safe(pk, bad), "nat key rejects native source material");
+
+
+
+    auto safe = enc_nat_value_seeded(pk, sk, sk.prf_k[0], seed.data(), 4);
+    must(!has_native_source(pk, safe), "nat public material avoids native source");
+    must(base_layer_count(safe) == 1, "nat public material uses standard source");
+    must(ct::fp_eq(dec_value_native_local(pk, sk, safe), fp_from_u64(sk.prf_k[0])), "nat public material decrypts");
+    auto compat = enc_ru_value_seeded(pk, sk, sk.prf_k[0], seed.data(), 4);
+    must(!has_native_source(pk, compat), "ru compat material avoids native source");
+    must(base_layer_count(compat) == 1, "ru compat material uses standard source");
+    must(ct::fp_eq(dec_value_native_local(pk, sk, compat), fp_from_u64(sk.prf_k[0])), "ru compat material decrypts");
+
+
+
+    
     auto legacy = rk;
     legacy.sec[0].L[0].PC.clear();
     legacy.view = rku_view(pk, legacy);

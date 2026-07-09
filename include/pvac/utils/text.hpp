@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <iostream>
 #include <algorithm>
+#include <stdexcept>
 
 #include "../core/types.hpp"
 #include "../ops/encrypt.hpp"
@@ -52,7 +52,7 @@ inline std::vector<Cipher> enc_text(
     while (pos < n) {
         size_t take = std::min((size_t)15, n - pos);
         Fp x = pack_15_bytes_to_fp(p + pos, take);
-        out.push_back(enc_fp_depth(pk, sk, x, depth_hint));
+        out.push_back(enc_fp_wrapped_depth(pk, sk, x, depth_hint));
         pos += take;
         depth_hint++;
     }
@@ -68,9 +68,11 @@ inline std::string dec_text(
     if (cts.empty()) return {};
 
     Fp flen = dec_value(pk, sk, cts[0]);
-    if (flen.hi != 0) std::cerr << "text length hi != 0, clipping\n";
+    if (flen.hi != 0) throw std::runtime_error("pvac: text length rejected");
 
     uint64_t len = flen.lo;
+    uint64_t max_len = static_cast<uint64_t>(cts.size() - 1) * 15;
+    if (len > max_len) throw std::runtime_error("pvac: text length exceeds block count");
     std::vector<uint8_t> buf;
     buf.reserve((size_t)len + 16);
 
@@ -80,8 +82,6 @@ inline std::string dec_text(
         unpack_fp_to_15_bytes(fx, block);
         for (int j = 0; j < 15; j++) buf.push_back(block[j]);
     }
-
-    if (buf.size() < len) len = (uint64_t)buf.size();
 
     return std::string((const char*)buf.data(), (size_t)len);
 }

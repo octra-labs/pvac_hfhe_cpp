@@ -138,8 +138,7 @@ inline RecryptResult recrypt_result(const PubKey& pk, const NatKey& key, const C
     out.compact = recrypt_compact(pk, key, ct, adm, query);
     out.has_compact = true;
     if (delivery) {
-        out.cipher = recrypt(pk, key, ct);
-        out.has_cipher = true;
+        throw std::runtime_error("pvac: recrypt mode rejected");
     }
     return out;
 }

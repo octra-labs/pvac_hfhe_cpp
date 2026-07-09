@@ -118,11 +118,8 @@ $(BUILD)/test_verify_zero: $(TESTS)/test_verify_zero.cpp | $(BUILD)
 $(BUILD)/test_range_proof: $(TESTS)/test_range_proof.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-$(BUILD)/test_recrypt: $(TESTS)/test_recrypt.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-$(BUILD)/test_recrypt_native: $(TESTS)/test_recrypt_native.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -o $@ $<
+$(BUILD)/test_bound_range: $(TESTS)/test_bound_range.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -I../lib/pvac_ffi -o $@ $<
 
 $(BUILD)/test_recrypt_nat: $(TESTS)/test_recrypt_nat.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
@@ -133,19 +130,13 @@ $(BUILD)/test_recrypt_api: $(TESTS)/test_recrypt_api.cpp | $(BUILD)
 $(BUILD)/test_hfhe_depth: $(TESTS)/test_hfhe_depth.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-$(BUILD)/bench_recrypt_refresh: $(TESTS)/bench_recrypt_refresh.cpp | $(BUILD)
+$(BUILD)/test_plaintext_oracle: $(TESTS)/test_plaintext_oracle.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-$(BUILD)/bench_recrypt_nat_matrix: $(TESTS)/bench_recrypt_nat_matrix.cpp | $(BUILD)
+$(BUILD)/test_public_zero_oracle: $(TESTS)/test_public_zero_oracle.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 $(BUILD)/bench_recrypt_deep_api: $(TESTS)/bench_recrypt_deep_api.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-$(BUILD)/soak_recrypt_nat_prod: $(TESTS)/soak_recrypt_nat_prod.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-$(BUILD)/test_r2_attack: $(TESTS)/test_r2_attack.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 $(BUILD)/test_ristretto255: $(TESTS)/test_ristretto255.cpp | $(BUILD)
@@ -183,7 +174,8 @@ test_zero_sk: $(BUILD)/test_zero_sk
 test_private_transfer: $(BUILD)/test_private_transfer
 
 
-test: test-hfhe-native
+test: $(BUILD)/test_main
+	@./$(BUILD)/test_main
 
 test-v: $(BUILD)/test_main
 	@PVAC_DBG=2 ./$(BUILD)/test_main
@@ -260,12 +252,6 @@ test-verify-zero: $(BUILD)/test_verify_zero
 test-range-proof: $(BUILD)/test_range_proof
 	@./$(BUILD)/test_range_proof
 
-test-recrypt: $(BUILD)/test_recrypt
-	@./$(BUILD)/test_recrypt
-
-test-recrypt-native: $(BUILD)/test_recrypt_native
-	@./$(BUILD)/test_recrypt_native
-
 test-recrypt-nat: $(BUILD)/test_recrypt_nat
 	@./$(BUILD)/test_recrypt_nat
 
@@ -275,33 +261,21 @@ test-recrypt-api: $(BUILD)/test_recrypt_api
 test-hfhe-depth: $(BUILD)/test_hfhe_depth
 	@./$(BUILD)/test_hfhe_depth
 
-test-r2-attack: $(BUILD)/test_r2_attack
-	@./$(BUILD)/test_r2_attack
+test-plaintext-oracle: $(BUILD)/test_plaintext_oracle
+	@./$(BUILD)/test_plaintext_oracle
 
-test-native: test-recrypt-native test-recrypt-nat test-recrypt-api
+test-public-zero-oracle: $(BUILD)/test_public_zero_oracle
+	@./$(BUILD)/test_public_zero_oracle
 
-test-hfhe-native: test-recrypt-nat test-recrypt-api test-hfhe-depth
+test-native: test-recrypt-nat test-recrypt-api
 
-test-recrypt-security: test-recrypt-native test-recrypt-nat test-recrypt-api test-recrypt test-r2-attack
+test-hfhe-native: test-plaintext-oracle test-public-zero-oracle test-recrypt-nat test-recrypt-api test-hfhe-depth
 
-test-recrypt-ci: test-recrypt-security bench-recrypt-refresh bench-recrypt-nat-matrix
+test-recrypt-security: test-hfhe-native
 
-test-security: test-recrypt-security
+test-recrypt-ci: test-recrypt-security
 
-bench-recrypt-refresh: $(BUILD)/bench_recrypt_refresh
-	@./$(BUILD)/bench_recrypt_refresh
-
-bench-recrypt-refresh-base: $(BUILD)/bench_recrypt_refresh
-	@PVAC_RECRYPT_BASE=1 ./$(BUILD)/bench_recrypt_refresh
-
-bench-recrypt-nat-matrix: $(BUILD)/bench_recrypt_nat_matrix
-	@./$(BUILD)/bench_recrypt_nat_matrix
-
-bench-recrypt-nat-matrix-long: $(BUILD)/bench_recrypt_nat_matrix
-	@PVAC_NAT_MATRIX_ITERS=64 ./$(BUILD)/bench_recrypt_nat_matrix
-
-bench-recrypt-nat-matrix-base: $(BUILD)/bench_recrypt_nat_matrix
-	@PVAC_NAT_MATRIX_BASE=1 PVAC_NAT_MATRIX_ITERS=8 ./$(BUILD)/bench_recrypt_nat_matrix
+test-security: test-hfhe-native
 
 bench-recrypt-deep-api: $(BUILD)/bench_recrypt_deep_api
 	@PVAC_DEEP_DEPTH=2 PVAC_DEEP_CADENCES=1,2 PVAC_RESET_DEPTH_MAX=2 ./$(BUILD)/bench_recrypt_deep_api
@@ -311,9 +285,6 @@ bench-recrypt-deep-api-920: $(BUILD)/bench_recrypt_deep_api
 
 bench-recrypt-deep-api-920-full: $(BUILD)/bench_recrypt_deep_api
 	@PVAC_DEEP_DEPTH=920 PVAC_DEEP_CADENCES=1,2,4,8 PVAC_RESET_DEPTH_MAX=2 ./$(BUILD)/bench_recrypt_deep_api
-
-soak-recrypt-nat-prod: $(BUILD)/soak_recrypt_nat_prod
-	@./$(BUILD)/soak_recrypt_nat_prod
 
 test-ristretto255: $(BUILD)/test_ristretto255
 	@./$(BUILD)/test_ristretto255
@@ -338,6 +309,6 @@ clean:
 
 help:
 	@echo "targets: all test test-v test-q test-hg debug sanitize examples clean"
-	@echo "env: PVAC_DBG = 0|1|2"
+	@echo "env: PVAC_DBG=0|1|2"
 
-.PHONY: all libpvac test test-v test-q test-hg test-private-transfer clean help examples ml test-recrypt-native test-recrypt-nat test-recrypt-api test-hfhe-depth test-hfhe-native test-recrypt-security test-recrypt-ci bench-recrypt-refresh bench-recrypt-refresh-base bench-recrypt-nat-matrix bench-recrypt-nat-matrix-long bench-recrypt-nat-matrix-base bench-recrypt-deep-api bench-recrypt-deep-api-920 bench-recrypt-deep-api-920-full recrypt-nat-prod
+.PHONY: all libpvac test test-v test-q test-hg test-private-transfer clean help examples ml test-recrypt-nat test-recrypt-api test-hfhe-depth test-plaintext-oracle test-public-zero-oracle test-hfhe-native test-recrypt-security test-recrypt-ci bench-recrypt-deep-api bench-recrypt-deep-api-920 bench-recrypt-deep-api-920-full

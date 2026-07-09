@@ -12,6 +12,7 @@
 #include "pvac/crypto/matrix.hpp"
 #include "pvac/crypto/lpn.hpp"
 #include "pvac/crypto/keygen.hpp"
+#include "pvac/crypto/ristretto255.hpp"
 
 #include "pvac/ops/encrypt.hpp"
 #include "pvac/ops/decrypt.hpp"

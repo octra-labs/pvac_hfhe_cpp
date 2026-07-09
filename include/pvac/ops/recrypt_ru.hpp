@@ -1,6 +1,7 @@
 /*
- * octra labs
- * lambda0xe, denis cmix, J.
+ * Octra Labs
+ * Internal use only
+ * December 2025
  */
 
 #pragma once
@@ -30,9 +31,11 @@ inline Cipher nat_add_fp(const PubKey& pk, Cipher ct, const Fp& x) {
 inline Layer ru_layer(const PubKey& pk, const SecKey& sk, const RSeed& seed, size_t slots) {
     Layer layer;
     layer.rule = RRule::BASE;
-    layer.seed = seed;
-    auto r = ru_r_slots(sk, seed, slots);
-    layer.R_com = compute_R_com_base(pk.canon_tag, seed.ztag, seed.nonce.lo, seed.nonce.hi, r);
+    layer.seed.nonce = seed.nonce;
+    layer.seed.ztag = prg_layer_ztag(pk.canon_tag, layer.seed.nonce);
+    auto r = prf_R_slots(pk, sk, layer.seed, slots);
+    layer.R_com = compute_R_com_base(pk.canon_tag, layer.seed.ztag, layer.seed.nonce.lo, layer.seed.nonce.hi, r);
+    compute_layer_PC(layer, sk, r, slots);
     return layer;
 }
 
@@ -41,26 +44,21 @@ inline Layer nat_layer(const PubKey& pk, const SecKey& sk, const RSeed& seed, si
 }
 
 inline Cipher enc_ru_fp_seeded(const PubKey& pk, const SecKey& sk, const std::vector<Fp>& v, const uint8_t seed[32], size_t edges = 8) {
+    (void)edges;
     if (v.empty())
         throw std::runtime_error("pvac: ru encrypt value rejected");
-    SeedableRng rng = make_seeded_rng(seed);
-    auto rseed = ru_seed(pk, seed);
-    auto layer = ru_layer(pk, sk, rseed, v.size());
-    auto r = ru_r_slots(sk, rseed, v.size());
-    auto target = field::Op::mul(v, r);
-    Cipher out;
-    out.slots = v.size();
-    out.c0 = field::Op::zeros(v.size());
-    out.L.push_back(layer);
-    out.E = detail::emit_repack_edges(pk, 0, out.L[0], target, edges ? edges : 1, rng);
-    guard_budget(pk, out, "ru encrypt");
-    compact_edges(pk, out);
-    compact_layers(out);
-    return out;
+    auto scoped = enc_seed_scope(pk, seed, "ru", v.size(), 0, v);
+    SeedableRng rng = make_seeded_rng(scoped.data());
+    return enc_fp_depth_seeded(pk, sk, v, 0, rng);
 }
 
 inline Cipher enc_nat_fp_seeded(const PubKey& pk, const SecKey& sk, const std::vector<Fp>& v, const uint8_t seed[32], size_t edges = 8) {
-    return enc_ru_fp_seeded(pk, sk, v, seed, edges);
+    (void)edges;
+    if (v.empty())
+        throw std::runtime_error("pvac: nat encrypt value rejected");
+    auto scoped = enc_seed_scope(pk, seed, "nat", v.size(), 0, v);
+    SeedableRng rng = make_seeded_rng(scoped.data());
+    return enc_fp_depth_seeded(pk, sk, v, 0, rng);
 }
 
 inline Cipher enc_ru_value_seeded(const PubKey& pk, const SecKey& sk, uint64_t v, const uint8_t seed[32], size_t edges = 8) {
@@ -68,20 +66,13 @@ inline Cipher enc_ru_value_seeded(const PubKey& pk, const SecKey& sk, uint64_t v
 }
 
 inline Cipher enc_nat_value_seeded(const PubKey& pk, const SecKey& sk, uint64_t v, const uint8_t seed[32], size_t edges = 8) {
-    return enc_ru_value_seeded(pk, sk, v, seed, edges);
+    return enc_nat_fp_seeded(pk, sk, {fp_from_u64(v)}, seed, edges);
 }
 
 inline bool ru_cipher(const PubKey& pk, const Cipher& ct) {
-    if (!is_cipher_compatible_with_pubkey(pk, ct))
-        return false;
-    for (size_t i = 0; i < ct.L.size(); ++i) {
-        const auto& layer = ct.L[i];
-        if (layer.rule == RRule::BASE && !ru_src(pk, layer))
-            return false;
-        if (layer.rule == RRule::PROD && (layer.pa >= i || layer.pb >= i))
-            return false;
-    }
-    return !ct.L.empty();
+    (void)pk;
+    (void)ct;
+    return false;
 }
 
 inline bool nat_cipher(const PubKey& pk, const Cipher& ct) {

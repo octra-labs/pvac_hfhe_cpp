@@ -21,8 +21,6 @@
 #include "../core/ct_safe.hpp"
 #include "../core/seedable_rng.hpp"
 
-#include "../crypto/ristretto255.hpp"
-
 namespace pvac {
 
 namespace alg {
@@ -978,9 +976,31 @@ inline Cipher combine_ciphers(const PubKey& pk, const Cipher& a, const Cipher& b
     return core::fuse(pk, a, b);
 }
 
+// ndt - new fix (3 Jul 2026)
+
+inline Cipher enc_fp_wrapped_depth(const PubKey& pk, const SecKey& sk, const std::vector<Fp>& v, int d) {
+    std::vector<Fp> m(v.size());
+    for (size_t j = 0; j < v.size(); ++j) m[j] = rand_fp_nonzero();
+    return combine_ciphers(pk,
+        enc_fp_depth(pk, sk, field::Op::add(v, m), d),
+        enc_fp_depth(pk, sk, field::Op::neg(m), d));
+}
+
+inline Cipher enc_fp_wrapped_depth(const PubKey& pk, const SecKey& sk, const Fp& v, int d) {
+    return enc_fp_wrapped_depth(pk, sk, std::vector<Fp>{v}, d);
+}
+
+inline Cipher enc_fp_raw_depth(const PubKey& pk, const SecKey& sk, const std::vector<Fp>& v, int d) {
+    return enc_fp_depth(pk, sk, v, d);
+}
+
+inline Cipher enc_fp_raw_depth(const PubKey& pk, const SecKey& sk, const Fp& v, int d) {
+    return enc_fp_depth(pk, sk, v, d);
+}
+
 inline Cipher enc_value_depth(const PubKey& pk, const SecKey& sk, uint64_t v, int d) {
     std::vector<Fp> vals = {fp_from_u64(v)};
-    std::vector<Fp> m = {field::Op::rnd()};
+    std::vector<Fp> m = {rand_fp_nonzero()};
     return combine_ciphers(pk,
         enc_fp_depth(pk, sk, field::Op::add(vals, m), d),
         enc_fp_depth(pk, sk, field::Op::neg(m), d));
@@ -993,7 +1013,7 @@ inline Cipher enc_value(const PubKey& pk, const SecKey& sk, uint64_t v) {
 inline Cipher enc_values_depth(const PubKey& pk, const SecKey& sk, const std::vector<uint64_t>& v, int d) {
     size_t S = v.size();
     std::vector<Fp> vals(S), m(S);
-    for (size_t j = 0; j < S; ++j) { vals[j] = fp_from_u64(v[j]); m[j] = field::Op::rnd(); }
+    for (size_t j = 0; j < S; ++j) { vals[j] = fp_from_u64(v[j]); m[j] = rand_fp_nonzero(); }
     return combine_ciphers(pk,
         enc_fp_depth(pk, sk, field::Op::add(vals, m), d),
         enc_fp_depth(pk, sk, field::Op::neg(m), d));
@@ -1004,7 +1024,7 @@ inline Cipher enc_values(const PubKey& pk, const SecKey& sk, const std::vector<u
 }
 
 inline Cipher enc_zero_depth(const PubKey& pk, const SecKey& sk, int d) {
-    std::vector<Fp> m = {field::Op::rnd()};
+    std::vector<Fp> m = {rand_fp_nonzero()};
     return combine_ciphers(pk, enc_fp_depth(pk, sk, m, d), enc_fp_depth(pk, sk, field::Op::neg(m), d));
 }
 

@@ -63,11 +63,25 @@ inline RSeed ru_seed(const PubKey& pk, const uint8_t seed[32]) {
 }
 
 inline Fp ru_affine(const SecKey& sk, const RSeed& seed, size_t slot) {
-    Fp acc = ru_fp(seed, 0, 0, slot);
+    Sha256 h;
+    h.init();
+    h.update("pvac.native.ru.secret", std::strlen("pvac.native.ru.secret"));
+    sha256_acc_u64(h, seed.ztag);
+    sha256_acc_u64(h, seed.nonce.lo);
+    sha256_acc_u64(h, seed.nonce.hi);
+    sha256_acc_u64(h, slot);
     for (size_t i = 0; i < sk.prf_k.size(); ++i) {
-        acc = fp_add(acc, fp_mul(ru_fp(seed, 1, i, slot), fp_from_u64(sk.prf_k[i])));
+        sha256_acc_u64(h, i);
+        sha256_acc_u64(h, sk.prf_k[i]);
     }
-    return acc;
+    std::array<uint8_t, 32> d{};
+    h.finish(d.data());
+    uint64_t lo = 0;
+    uint64_t hi = 0;
+    std::memcpy(&lo, d.data(), sizeof(lo));
+    std::memcpy(&hi, d.data() + sizeof(lo), sizeof(hi));
+    auto out = fp_from_words(lo, hi & MASK63);
+    return (out.lo || out.hi) ? out : fp_from_u64(1);
 }
 
 inline Fp ru_y(const SecKey& sk, const RSeed& seed, size_t slot) {

@@ -41,10 +41,7 @@ int main() {
     auto b = enc(pk, sk, 11);
     auto ab = ct_mul(pk, a, b);
     must(ct::fp_eq(dec1(pk, sk, ab), fp_from_u64(77)), "canonical cipher decrypts");
-    auto clean = recrypt(pk, key, ab);
-    must(recrypt_verify(pk, key, ab, clean), "canonical cipher refresh verifies");
-    must(ct::fp_eq(dec1(pk, sk, clean), fp_from_u64(77)), "canonical cipher refresh preserves value");
-    must(clean.L.size() > 0 && clean.E.size() > 0, "canonical cipher refresh materializes output");
+    must(dies([&]() { auto bad = recrypt(pk, key, ab); (void)bad; }), "canonical direct refresh rejected");
     auto adm = nat_chain();
     auto compact = recrypt_compact(pk, key, ab, adm);
     must(recrypt_compact_verify(pk, key, ab, compact), "canonical compact refresh verifies");
@@ -58,13 +55,13 @@ int main() {
     must(!recrypt_compact_verify(pk, key, ab, compact_tamper, adm), "canonical compact refresh rejects tamper");
     must(dies([&]() { auto bad = recrypt_compact_step(pk, key, ab, adm, adm.max_query - 1); (void)bad; }), "canonical compact step rejects terminal query");
     must(dies([&]() { auto bad = recrypt_result(pk, key, ab, adm, adm.max_query - 1, true); (void)bad; }), "canonical refresh result rejects terminal query");
+    must(dies([&]() { auto bad = recrypt_result(pk, key, ab, adm, 0, true); (void)bad; }), "canonical refresh direct mode rejected");
     auto compact_step = recrypt_compact_step(pk, key, ab, adm);
     must(nat_terms(compact_step) == adm.out_terms, "canonical compact step enters hidden pipeline");
-    auto refresh = recrypt_result(pk, key, ab, adm, 0, true);
+    auto refresh = recrypt_result(pk, key, ab, adm, 0, false);
     must(recrypt_verify(pk, key, ab, refresh), "canonical refresh result verifies");
-    must(refresh.has_compact && refresh.has_cipher, "canonical refresh result carries compact and delivery");
+    must(refresh.has_compact && !refresh.has_cipher, "canonical refresh result stays compact");
     must(recrypt_compact_terms(refresh.compact) == adm.out_terms, "canonical refresh result stays compact");
-    must(ct::fp_eq(dec1(pk, sk, refresh.cipher), fp_from_u64(77)), "canonical refresh delivery preserves value");
     auto refresh_step = recrypt_step(refresh);
     must(nat_terms(refresh_step) == adm.out_terms, "canonical refresh result continues compactly");
     auto hb = nat_in(pk, b, adm);

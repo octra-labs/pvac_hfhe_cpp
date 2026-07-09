@@ -262,7 +262,10 @@ inline bool recrypt_hidden_verify(const PubKey& pk, const Rku& rk, const Cipher&
 }
 
 inline Cipher recrypt(const PubKey& pk, const Rku& rk, const Cipher& ct) {
-    return ru_refresh(pk, rk, ct);
+    (void)pk;
+    (void)rk;
+    (void)ct;
+    throw std::runtime_error("pvac: recrypt mode rejected");
 }
 
 inline Cipher recrypt(const PubKey& pk, const Rku& rk, const Cipher& ct, const uint8_t seed[32], size_t out_layers, size_t edges = 8) {
