@@ -192,6 +192,7 @@ struct Sha256HiddenTraceBranchProof {
     std::array<uint8_t, 32> challenge = {};
     std::array<uint8_t, 32> response_digest = {};
     std::array<std::array<uint8_t, 32>, 3> commits = {};
+    std::array<Sha256HiddenStateShare, 3> final_post = {};
     std::vector<Sha256HiddenBlockBranch> openings;
     bool message_hidden = false;
     bool schedule_trace = false;
@@ -1328,9 +1329,39 @@ inline std::array<uint8_t, 32> sha256_hidden_trace_branch_challenge(const Sha256
     for (const auto& commit : proof.commits) {
         h.update(commit.data(), commit.size());
     }
+    // Bind the revealed per-branch output shares into the Fiat-Shamir challenge so the
+    // prover cannot pick them after seeing which branch stays closed.
+    for (const auto& share : proof.final_post) {
+        sha256_hidden_acc_state_share(h, share);
+    }
     std::array<uint8_t, 32> out{};
     h.finish(out.data());
     return out;
+}
+
+// Reconstruct the SHA-256 output words from the three branch shares of the final state.
+inline std::array<uint32_t, 8> sha256_hidden_reconstruct_state(const std::array<Sha256HiddenStateShare, 3>& shares) {
+    std::array<uint32_t, 8> out{};
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 32; ++j) {
+            Fp v = fp_add(fp_add(shares[0].word[i].bit[j], shares[1].word[i].bit[j]), shares[2].word[i].bit[j]);
+            if (!sha256_hidden_fp_eq(v, fp_from_u64(0))) {
+                out[i] |= static_cast<uint32_t>(1) << j;
+            }
+        }
+    }
+    return out;
+}
+
+inline bool sha256_hidden_state_share_eq(const Sha256HiddenStateShare& a, const Sha256HiddenStateShare& b) {
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 32; ++j) {
+            if (!sha256_hidden_fp_eq(a.word[i].bit[j], b.word[i].bit[j])) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 inline std::array<uint8_t, 32> sha256_hidden_trace_branch_response(const Sha256HiddenTraceBranchProof& proof) {
@@ -1392,6 +1423,11 @@ inline Sha256HiddenTraceBranchProof make_sha256_hidden_trace_branch_proof(const 
             view.commit = sha256_hidden_block_branch_commit(view);
             by_branch[branch].push_back(view);
         }
+    }
+    // Reveal each branch's final output-state share so the verifier can reconstruct the
+    // digest and bind it. Revealing all three shares only reveals the public output.
+    for (size_t branch = 0; branch < 3; ++branch) {
+        proof.final_post[branch] = by_branch[branch].back().post;
     }
     for (size_t branch = 0; branch < 3; ++branch) {
         Sha256 h;
@@ -1468,6 +1504,18 @@ inline bool verify_sha256_hidden_trace_branch_proof(const Sha256HiddenTraceBranc
         if (out != proof.commits[branch])
             return false;
     }
+    // Bind proof.digest to the traced computation: reconstruct the output from the three
+    // revealed final-state shares and require it to equal the claimed digest. Require each
+    // opened branch's revealed share to match its verified view, so the two opened shares
+    // are the real computation's output shares (only the closed share is unchecked, which
+    // is what the per-repetition soundness of the outer certificate must cover).
+    auto out_state = sha256_hidden_reconstruct_state(proof.final_post);
+    if (sha256_trace_digest_from_state(out_state) != proof.digest)
+        return false;
+    if (!sha256_hidden_state_share_eq(proof.final_post[left], opened[left].back().post))
+        return false;
+    if (!sha256_hidden_state_share_eq(proof.final_post[right], opened[right].back().post))
+        return false;
     return proof.response_digest == sha256_hidden_trace_branch_response(proof);
 }
 
