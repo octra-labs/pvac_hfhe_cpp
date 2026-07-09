@@ -136,6 +136,9 @@ $(BUILD)/test_plaintext_oracle: $(TESTS)/test_plaintext_oracle.cpp | $(BUILD)
 $(BUILD)/test_public_zero_oracle: $(TESTS)/test_public_zero_oracle.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
+$(BUILD)/test_rcomless_fold: $(TESTS)/test_rcomless_fold.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
 $(BUILD)/bench_recrypt_deep_api: $(TESTS)/bench_recrypt_deep_api.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
@@ -267,9 +270,12 @@ test-plaintext-oracle: $(BUILD)/test_plaintext_oracle
 test-public-zero-oracle: $(BUILD)/test_public_zero_oracle
 	@./$(BUILD)/test_public_zero_oracle
 
+test-rcomless-fold: $(BUILD)/test_rcomless_fold
+	@./$(BUILD)/test_rcomless_fold
+
 test-native: test-recrypt-nat test-recrypt-api
 
-test-hfhe-native: test-plaintext-oracle test-public-zero-oracle test-recrypt-nat test-recrypt-api test-hfhe-depth
+test-hfhe-native: test-plaintext-oracle test-public-zero-oracle test-rcomless-fold test-recrypt-nat test-recrypt-api test-hfhe-depth
 
 test-recrypt-security: test-hfhe-native
 

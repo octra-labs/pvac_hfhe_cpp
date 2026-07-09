@@ -9,8 +9,10 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
+#include "../core/hash.hpp"
 #include "../core/types.hpp"
 #include "encrypt.hpp"
 
@@ -38,8 +40,28 @@ inline void fold_prod_norm(Layer& layer) {
     }
 }
 
+inline std::array<uint8_t, 32> fold_sig_digest(const char* tag, const Layer& layer) {
+    Sha256 h;
+    h.init();
+    h.update(tag, std::strlen(tag));
+    uint8_t rule[1] = {static_cast<uint8_t>(layer.rule)};
+    h.update(rule, 1);
+    sha256_acc_u64(h, layer.seed.ztag);
+    sha256_acc_u64(h, layer.seed.nonce.lo);
+    sha256_acc_u64(h, layer.seed.nonce.hi);
+    sha256_acc_u64(h, layer.pa);
+    sha256_acc_u64(h, layer.pb);
+    sha256_acc_u64(h, static_cast<uint64_t>(layer.PC.size()));
+    for (const auto& pc : layer.PC) {
+        h.update(pc.data(), pc.size());
+    }
+    std::array<uint8_t, 32> out{};
+    h.finish(out.data());
+    return out;
+}
+
 inline std::vector<std::array<uint8_t, 32>> fold_sig_base(const Layer& layer) {
-    return {layer.R_com};
+    return {fold_sig_digest("pvac.fold.base", layer)};
 }
 
 inline std::vector<std::array<uint8_t, 32>> fold_sig_prod(const std::vector<std::array<uint8_t, 32>>& a, const std::vector<std::array<uint8_t, 32>>& b) {
